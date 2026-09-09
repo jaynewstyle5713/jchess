@@ -39,53 +39,64 @@ export function useChessWebSocket({
     }
 
     setConnectionStatus('RECONNECTING');
+    const isDev = window.location.port === '3000';
+    const targetHost = isDev ? `${window.location.hostname}:8080` : window.location.host;
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host;
-    const wsUrl = `${protocol}//${host}/ws/games/${gameId}?playerId=${encodeURIComponent(playerId)}`;
+    const wsUrl = `${protocol}//${targetHost}/ws/games/${gameId}?playerId=${encodeURIComponent(playerId)}`;
 
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
+    console.log('[jchess] WebSocket connecting to:', wsUrl);
 
-    ws.onopen = () => {
-      setConnectionStatus('CONNECTED');
-    };
+    try {
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
 
-    ws.onmessage = (event) => {
-      try {
-        const envelope: EventEnvelope = JSON.parse(event.data);
-        if (envelope.gameVersion !== undefined) {
-          latestGameVersionRef.current = envelope.gameVersion;
+      ws.onopen = () => {
+        console.log('[jchess] WebSocket connected successfully');
+        setConnectionStatus('CONNECTED');
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const envelope: EventEnvelope = JSON.parse(event.data);
+          if (envelope.gameVersion !== undefined) {
+            latestGameVersionRef.current = envelope.gameVersion;
+          }
+
+          switch (envelope.eventType) {
+            case 'GAME_STATE_SNAPSHOT':
+              onSnapshot?.(envelope.payload as GameSnapshot);
+              break;
+            case 'GAME_STATE_UPDATED':
+              onStateUpdated?.(envelope.payload as GameStateUpdatedPayload, envelope.gameVersion);
+              break;
+            case 'MOVE_REJECTED':
+              onMoveRejected?.(envelope.payload as MoveRejectedPayload);
+              break;
+            case 'GAME_ENDED':
+              onGameEnded?.(envelope.payload as GameEndedPayload);
+              break;
+            case 'ERROR':
+              onError?.((envelope.payload as { message: string }).message || '알 수 없는 오류');
+              break;
+          }
+        } catch (err) {
+          console.error('[jchess] Failed to parse WebSocket message:', err);
         }
+      };
 
-        switch (envelope.eventType) {
-          case 'GAME_STATE_SNAPSHOT':
-            onSnapshot?.(envelope.payload as GameSnapshot);
-            break;
-          case 'GAME_STATE_UPDATED':
-            onStateUpdated?.(envelope.payload as GameStateUpdatedPayload, envelope.gameVersion);
-            break;
-          case 'MOVE_REJECTED':
-            onMoveRejected?.(envelope.payload as MoveRejectedPayload);
-            break;
-          case 'GAME_ENDED':
-            onGameEnded?.(envelope.payload as GameEndedPayload);
-            break;
-          case 'ERROR':
-            onError?.((envelope.payload as { message: string }).message || '알 수 없는 오류');
-            break;
-        }
-      } catch (err) {
-        console.error('Failed to parse WebSocket message:', err);
-      }
-    };
+      ws.onclose = (ev) => {
+        console.warn('[jchess] WebSocket closed:', ev.code, ev.reason);
+        setConnectionStatus('DISCONNECTED');
+      };
 
-    ws.onclose = () => {
+      ws.onerror = (err) => {
+        console.error('[jchess] WebSocket error occurred:', err);
+        setConnectionStatus('DISCONNECTED');
+      };
+    } catch (e) {
+      console.error('[jchess] WebSocket connection failed to initialize:', e);
       setConnectionStatus('DISCONNECTED');
-    };
-
-    ws.onerror = () => {
-      setConnectionStatus('DISCONNECTED');
-    };
+    }
   }, [gameId, playerId, onSnapshot, onStateUpdated, onMoveRejected, onGameEnded, onError]);
 
   useEffect(() => {

@@ -3,17 +3,24 @@ package com.jchess.config;
 import com.jchess.websocket.ChessWebSocketHandler;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.reactive.CorsWebFilter;
 import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
 import org.springframework.web.reactive.HandlerMapping;
+import org.springframework.web.reactive.config.ResourceHandlerRegistry;
 import org.springframework.web.reactive.config.WebFluxConfigurer;
+import org.springframework.web.reactive.function.server.RouterFunction;
+import org.springframework.web.reactive.function.server.RouterFunctions;
+import org.springframework.web.reactive.function.server.ServerResponse;
 import org.springframework.web.reactive.handler.SimpleUrlHandlerMapping;
 import org.springframework.web.reactive.socket.WebSocketHandler;
 import org.springframework.web.reactive.socket.server.support.WebSocketHandlerAdapter;
 
 import java.util.Collections;
 import java.util.Map;
+
+import static org.springframework.web.reactive.function.server.RequestPredicates.GET;
 
 @Configuration
 public class WebSocketConfig implements WebFluxConfigurer {
@@ -59,5 +66,19 @@ public class WebSocketConfig implements WebFluxConfigurer {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return new CorsWebFilter(source);
+    }
+
+    @Override
+    public void addResourceHandlers(ResourceHandlerRegistry registry) {
+        registry.addResourceHandler("/**")
+                .addResourceLocations("classpath:/static/");
+    }
+
+    @Bean
+    public RouterFunction<ServerResponse> indexRouter() {
+        return RouterFunctions.route(
+                GET("/"),
+                request -> ServerResponse.ok().bodyValue(new ClassPathResource("static/index.html"))
+        );
     }
 }

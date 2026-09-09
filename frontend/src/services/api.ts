@@ -10,6 +10,13 @@ export interface CreateGameParams {
   playerName?: string;
 }
 
+const getApiBaseUrl = () => {
+  if (typeof window !== 'undefined' && window.location.port === '3000') {
+    return `http://${window.location.hostname}:8080`;
+  }
+  return '';
+};
+
 export async function createGameApi(params: CreateGameParams) {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -21,7 +28,8 @@ export async function createGameApi(params: CreateGameParams) {
     headers['X-Player-Name'] = params.playerName;
   }
 
-  const resp = await fetch('/api/v1/games', {
+  const url = `${getApiBaseUrl()}/api/v1/games`;
+  const resp = await fetch(url, {
     method: 'POST',
     headers,
     body: JSON.stringify({
@@ -52,7 +60,8 @@ export async function joinGameApi(gameId: string, playerId?: string, playerName?
     headers['X-Player-Name'] = playerName;
   }
 
-  const resp = await fetch(`/api/v1/games/${gameId}/join`, {
+  const url = `${getApiBaseUrl()}/api/v1/games/${gameId}/join`;
+  const resp = await fetch(url, {
     method: 'POST',
     headers,
   });
