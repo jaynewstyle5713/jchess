@@ -3,6 +3,8 @@ package com.jchess.api.handler;
 import com.jchess.api.dto.ApiErrorResponse;
 import com.jchess.api.dto.ErrorCode;
 import com.jchess.domain.exception.ChessException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -12,6 +14,8 @@ import org.springframework.web.bind.support.WebExchangeBindException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(ChessException.class)
     public ResponseEntity<ApiErrorResponse> handleChessException(ChessException ex) {
@@ -90,6 +94,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleGeneralException(Exception ex) {
+        log.error("Unhandled server exception: {}", ex.getMessage(), ex);
         ErrorCode code = ErrorCode.INTERNAL_SERVER_ERROR;
         ApiErrorResponse response = ApiErrorResponse.of(
                 code.name(),
@@ -102,3 +107,4 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
     }
 }
+

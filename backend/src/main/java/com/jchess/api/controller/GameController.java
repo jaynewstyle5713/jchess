@@ -1,5 +1,6 @@
 package com.jchess.api.controller;
 
+import com.jchess.ai.AsyncAiMoveExecutor;
 import com.jchess.api.dto.*;
 import com.jchess.service.GameService;
 import jakarta.validation.Valid;
@@ -12,9 +13,11 @@ import org.springframework.web.bind.annotation.*;
 public class GameController {
 
     private final GameService gameService;
+    private final AsyncAiMoveExecutor aiMoveExecutor;
 
-    public GameController(GameService gameService) {
+    public GameController(GameService gameService, AsyncAiMoveExecutor aiMoveExecutor) {
         this.gameService = gameService;
+        this.aiMoveExecutor = aiMoveExecutor;
     }
 
     @PostMapping
@@ -55,6 +58,7 @@ public class GameController {
             @RequestHeader(value = "X-Request-Id", required = false) String requestId
     ) {
         GameSnapshotResponse response = gameService.playMove(gameId, request, playerId, expectedVersion, requestId);
+        aiMoveExecutor.triggerAiMoveIfApplicable(response);
         return ResponseEntity.ok(response);
     }
 
@@ -67,3 +71,4 @@ public class GameController {
         return ResponseEntity.ok(response);
     }
 }
+
