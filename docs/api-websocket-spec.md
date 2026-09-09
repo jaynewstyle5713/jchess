@@ -56,6 +56,8 @@ REST와 WebSocket 공통으로 사용하는 표준 에러 규격이다.
 - **Request Body**:
 ```json
 {
+  "gameMode": "PVP", // "PVP" | "PVC" (기본값: "PVP")
+  "aiLevel": 2000,   // PVC 모드일 때 AI ELO 레이팅 (기본값: 2000)
   "timeControl": {
     "baseMinutes": 10,
     "incrementSeconds": 0
@@ -63,13 +65,27 @@ REST와 WebSocket 공통으로 사용하는 표준 에러 규격이다.
   "preferredColor": "WHITE" // "WHITE", "BLACK", "RANDOM"
 }
 ```
-- **Response** (201 Created):
+- **Response** (201 Created - PVP 대기 상태):
 ```json
 {
   "gameId": "game-a1b2c3d4",
+  "gameMode": "PVP",
   "status": "WAITING_FOR_OPPONENT",
   "whitePlayer": { "playerId": "user-white", "name": "Player 1" },
   "blackPlayer": null,
+  "gameVersion": 0,
+  "createdAt": "2026-09-08T12:00:00Z"
+}
+```
+- **Response** (201 Created - PVC 즉시 시작 상태):
+```json
+{
+  "gameId": "game-pvc-1234",
+  "gameMode": "PVC",
+  "aiLevel": 2000,
+  "status": "ACTIVE",
+  "whitePlayer": { "playerId": "user-player", "name": "Player 1" },
+  "blackPlayer": { "playerId": "ai-stockfish", "name": "Stockfish AI (ELO 2000)" },
   "gameVersion": 0,
   "createdAt": "2026-09-08T12:00:00Z"
 }

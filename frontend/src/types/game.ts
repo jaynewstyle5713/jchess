@@ -4,6 +4,8 @@ export type PieceType = 'PAWN' | 'KNIGHT' | 'BISHOP' | 'ROOK' | 'QUEEN' | 'KING'
 
 export type Square = `${'a'|'b'|'c'|'d'|'e'|'f'|'g'|'h'}${1|2|3|4|5|6|7|8}`;
 
+export type GameMode = 'PVP' | 'PVC';
+
 export type GameStatus =
   | 'WAITING_FOR_OPPONENT'
   | 'ACTIVE'
@@ -28,11 +30,17 @@ export type GameEndReason =
 
 export type ConnectionStatus = 'CONNECTED' | 'RECONNECTING' | 'SYNCING' | 'DISCONNECTED';
 
+export interface Piece {
+  type: PieceType;
+  color: PieceColor;
+}
+
 export interface PlayerInfo {
   id: string;
   name: string;
   remainingTimeMs: number;
   isOnline: boolean;
+  isAi?: boolean;
 }
 
 export interface Move {
@@ -52,6 +60,8 @@ export interface PendingPromotion {
 
 export interface GameSnapshot {
   gameId: string;
+  gameMode?: GameMode;
+  aiLevel?: number;
   gameStatus: GameStatus;
   gameVersion: number;
   turn: PieceColor;
@@ -61,4 +71,7 @@ export interface GameSnapshot {
   lastMove?: Move | null;
   pendingPromotion?: PendingPromotion | null;
   isCheck: boolean;
+  result?: GameResult | null;
+  endReason?: GameEndReason | null;
 }
+

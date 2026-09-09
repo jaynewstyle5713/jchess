@@ -158,6 +158,17 @@ flowchart LR
 - 기보와 결과 조회
 - 전적과 통계
 
+### 4.6 AI Engine / PVC (Player vs Computer) 모듈
+
+책임:
+
+- 외부 UCI(Universal Chess Interface) 표준 체스 엔진(Stockfish 등) 프로세스 생명주기 관리
+- AI 대국 세션 관리 및 ELO 2000+ 수준 파라미터(`UCI_LimitStrength`, `UCI_Elo` 등) 튜닝
+- 비동기 전용 스레드 풀(`aiEngineTaskExecutor`)을 통한 논블로킹 수 연산 요청 및 결과 수신
+- 플레이어 착수 완료 이벤트 수신 시 AI 수 자동 계산 트리거
+- 도메인 `GameService`를 통한 AI 수 정합성 검증 및 WebSocket 브로드캐스트 연동
+- 엔진 오류/타임아웃 시 Fail-Safe 폴백 수 생성 또는 세션 안전 종료 처리
+
 ### 4.6 Notification 모듈
 
 책임:
