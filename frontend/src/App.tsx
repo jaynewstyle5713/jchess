@@ -67,7 +67,11 @@ export default function App() {
   }) => {
     setIsLoading(true);
     try {
-      const data = await createGameApi(opts);
+      const data = await createGameApi({
+        ...opts,
+        playerId,
+        playerName: opts.playerName,
+      });
       const color = opts.preferredColor === 'RANDOM' ? (Math.random() > 0.5 ? 'WHITE' : 'BLACK') : opts.preferredColor;
       setMyColor(color as PieceColor);
       setGameId(data.gameId);
@@ -102,10 +106,10 @@ export default function App() {
     }
   };
 
-  const handleJoin = async (id: string) => {
+  const handleJoin = async (id: string, playerName: string) => {
     setIsLoading(true);
     try {
-      await joinGameApi(id);
+      await joinGameApi(id, playerId, playerName);
       setMyColor('BLACK');
       setGameId(id);
     } catch (err: unknown) {
