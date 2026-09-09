@@ -18,10 +18,19 @@ export default function App() {
   const [toast, setToast] = useState<string | null>(null);
   const [promoMove, setPromoMove] = useState<{ from: Square; to: Square } | null>(null);
 
-  const showToast = (msg: string) => {
+  const showToast = useCallback((msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 4000);
-  };
+  }, []);
+
+  const handleSnapshot = useCallback((snap: GameSnapshot) => {
+    setGameState(snap);
+    if (snap.whitePlayer.id === playerId) {
+      setMyColor('WHITE');
+    } else if (snap.blackPlayer && snap.blackPlayer.id === playerId) {
+      setMyColor('BLACK');
+    }
+  }, [playerId]);
 
   const handleStateUpdated = useCallback((u: GameStateUpdatedPayload, ver: number) => {
     setGameState((prev) => !prev ? null : {
@@ -45,14 +54,18 @@ export default function App() {
       fen: e.finalFen,
     });
     showToast(`대국 종료: ${e.result} (${e.reason})`);
-  }, []);
+  }, [showToast]);
+
+  const handleMoveRejected = useCallback((r: MoveRejectedPayload) => {
+    showToast(`착수 거부: ${r.message}`);
+  }, [showToast]);
 
   const { connectionStatus, sendMove, sendResign, sendOfferDraw, sendSyncState } = useChessWebSocket({
     gameId,
     playerId,
-    onSnapshot: (snap) => setGameState(snap),
+    onSnapshot: handleSnapshot,
     onStateUpdated: handleStateUpdated,
-    onMoveRejected: (r: MoveRejectedPayload) => showToast(`착수 거부: ${r.message}`),
+    onMoveRejected: handleMoveRejected,
     onGameEnded: handleGameEnded,
     onError: showToast,
   });

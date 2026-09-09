@@ -26,6 +26,21 @@ export function useChessWebSocket({
   const reconnectTimeoutRef = useRef<number | null>(null);
   const latestGameVersionRef = useRef<number>(0);
 
+  // 콜백 함수들을 ref에 저장하여 connect 함수의 의존성에서 분리 (무한 재연결 루프 방지)
+  const onSnapshotRef = useRef(onSnapshot);
+  const onStateUpdatedRef = useRef(onStateUpdated);
+  const onMoveRejectedRef = useRef(onMoveRejected);
+  const onGameEndedRef = useRef(onGameEnded);
+  const onErrorRef = useRef(onError);
+
+  useEffect(() => {
+    onSnapshotRef.current = onSnapshot;
+    onStateUpdatedRef.current = onStateUpdated;
+    onMoveRejectedRef.current = onMoveRejected;
+    onGameEndedRef.current = onGameEnded;
+    onErrorRef.current = onError;
+  });
+
   const setGameVersion = useCallback((version: number) => {
     latestGameVersionRef.current = version;
   }, []);
@@ -33,12 +48,12 @@ export function useChessWebSocket({
   const connect = useCallback(() => {
     if (!gameId) return;
 
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
+    if (wsRef.current && (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING)) {
+      return; // 이미 연결되어 있거나 연결 중이면 중복 연결 방지
     }
 
     setConnectionStatus('RECONNECTING');
+
     const isDev = window.location.port === '3000';
     const targetHost = isDev ? `${window.location.hostname}:8080` : window.location.host;
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -64,19 +79,19 @@ export function useChessWebSocket({
 
           switch (envelope.eventType) {
             case 'GAME_STATE_SNAPSHOT':
-              onSnapshot?.(envelope.payload as GameSnapshot);
+              onSnapshotRef.current?.(envelope.payload as GameSnapshot);
               break;
             case 'GAME_STATE_UPDATED':
-              onStateUpdated?.(envelope.payload as GameStateUpdatedPayload, envelope.gameVersion);
+              onStateUpdatedRef.current?.(envelope.payload as GameStateUpdatedPayload, envelope.gameVersion);
               break;
             case 'MOVE_REJECTED':
-              onMoveRejected?.(envelope.payload as MoveRejectedPayload);
+              onMoveRejectedRef.current?.(envelope.payload as MoveRejectedPayload);
               break;
             case 'GAME_ENDED':
-              onGameEnded?.(envelope.payload as GameEndedPayload);
+              onGameEndedRef.current?.(envelope.payload as GameEndedPayload);
               break;
             case 'ERROR':
-              onError?.((envelope.payload as { message: string }).message || '알 수 없는 오류');
+              onErrorRef.current?.((envelope.payload as { message: string }).message || '알 수 없는 오류');
               break;
           }
         } catch (err) {
@@ -87,6 +102,7 @@ export function useChessWebSocket({
       ws.onclose = (ev) => {
         console.warn('[jchess] WebSocket closed:', ev.code, ev.reason);
         setConnectionStatus('DISCONNECTED');
+        wsRef.current = null;
       };
 
       ws.onerror = (err) => {
@@ -96,8 +112,9 @@ export function useChessWebSocket({
     } catch (e) {
       console.error('[jchess] WebSocket connection failed to initialize:', e);
       setConnectionStatus('DISCONNECTED');
+      wsRef.current = null;
     }
-  }, [gameId, playerId, onSnapshot, onStateUpdated, onMoveRejected, onGameEnded, onError]);
+  }, [gameId, playerId]);
 
   useEffect(() => {
     if (gameId) {
@@ -117,7 +134,7 @@ export function useChessWebSocket({
   const sendCommand = useCallback(
     <T,>(type: CommandEnvelope['type'], payload: T) => {
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN || !gameId) {
-        onError?.('서버와 연결되어 있지 않습니다.');
+        onErrorRef.current?.('서버와 연결되어 있지 않습니다.');
         return;
       }
 
@@ -131,7 +148,7 @@ export function useChessWebSocket({
 
       wsRef.current.send(JSON.stringify(envelope));
     },
-    [gameId, onError]
+    [gameId]
   );
 
   const sendMove = useCallback(
