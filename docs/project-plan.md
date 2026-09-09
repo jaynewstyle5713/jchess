@@ -242,24 +242,31 @@ TL/PM 검토 기준:
 - 키보드만으로 핵심 대국 흐름을 수행하고 포커스 위치를 확인할 수 있다.
 - 기본 색상 조합이 색상 대비 기준을 충족하고 색상 외 상태 표현을 제공한다.
 
-### Phase 4.5: UCI AI 엔진 연동 및 비동기 수 처리 (PVC Engine)
+### Phase 4.5: UCI AI 엔진 연동 및 하이브리드 비동기 수 처리 (PVC Engine)
 
-목표: 외부 UCI 엔진(Stockfish 등)을 비동기 스레드 풀로 연동하여 ELO 2000+ 급 PVC 대국을 지원한다.
+목표: 외부 UCI 엔진(Stockfish 등)을 비동기 스레드 풀로 연동하여 ELO 2000+ 급 PVC 대국을 지원하며, 외부 바이너리 미설치 환경을 위한 순수 Java Fallback 엔진을 탑재해 100% 실행 안전성을 확보한다.
 
 주요 작업:
 
-- UCI 프로토콜 어댑터 (`UciEngineAdapter`) 구현
-- 프로세스 수명 주기 및 I/O 스트림 관리 (Stockfish 바이너리 연동)
-- ELO 2000 수준 설정 (`UCI_LimitStrength`, `UCI_Elo`=2000 또는 Depth 설정)
-- 플레이어 착수 완료 후 비동기 스케줄러를 통한 AI 자동 착수 트리거
-- AI 착수 완료 시 `GameService` 및 WebSocket 브로드캐스트 파이프라인 연동
-- 엔진 크래시 및 Timeout 시 Fail-Safe 복구/에러 핸들링
+- **하이브리드 AI 엔진 아키텍처 (`ChessAiEngine` 인터페이스)**
+  - 외부 바이너리 연동용 UCI 프로토콜 어댑터 (`StockfishUciEngineAdapter`)
+  - 무설치 환경/CI용 순수 Java 기반 Minimax/Alpha-Beta Pruning 엔진 (`JavaFallbackChessAiEngine`)
+  - 환경 설정(`jchess.ai.stockfish-path`) 자동 감지 및 Fallback 자동 전환 로직
+- **프로세스 생명주기 및 보안 강화**
+  - OS 셸 미경유 `ProcessBuilder` 직접 실행 및 FEN 화이트리스트 검증 (Command Injection 방지)
+  - 5초 연산 타임아웃 및 스레드 풀 격리 (`aiEngineTaskExecutor`)로 CPU DoS 방지
+- **대국 파이프라인 및 UX 연동**
+  - ELO 2000 수준 파라미터 설정 (`UCI_LimitStrength`, `UCI_Elo`=2000)
+  - 플레이어 착수 완료 후 비동기 스케줄러를 통한 AI 자동 착수 트리거
+  - 인간적인 체감 생각 시간(500ms~1000ms) 보정
+  - AI 착수 완료 시 `GameService` 및 WebSocket 브로드캐스트 파이프라인 연동
 
 완료 조건:
 
-- 플레이어가 수를 두면 비동기 스레드에서 AI가 2000 ELO 수준의 합법적 수를 생성하여 응답한다.
+- 플레이어가 수를 두면 비동기 스레드에서 AI가 2000 ELO 수준(또는 Fallback)의 합법적 수를 생성하여 응답한다.
+- 외부 Stockfish 바이너리가 없는 CI/CD 및 로컬 환경에서도 테스트와 대국이 실패 없이 100% 정상 작동한다.
 - AI 연산 중 메인 웹/웹소켓 스레드가 블로킹되지 않는다.
-- AI 엔진의 비정상 종료 시에도 대국 세션이 안전하게 유지되고 복구된다.
+- AI 엔진 비정상 종료 시에도 대국 세션이 안전하게 유지되고 복구된다.
 
 ### Phase 5: 인증, 시간, 운영 품질
 

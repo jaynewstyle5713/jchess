@@ -162,12 +162,12 @@ flowchart LR
 
 책임:
 
-- 외부 UCI(Universal Chess Interface) 표준 체스 엔진(Stockfish 등) 프로세스 생명주기 관리
-- AI 대국 세션 관리 및 ELO 2000+ 수준 파라미터(`UCI_LimitStrength`, `UCI_Elo` 등) 튜닝
-- 비동기 전용 스레드 풀(`aiEngineTaskExecutor`)을 통한 논블로킹 수 연산 요청 및 결과 수신
-- 플레이어 착수 완료 이벤트 수신 시 AI 수 자동 계산 트리거
-- 도메인 `GameService`를 통한 AI 수 정합성 검증 및 WebSocket 브로드캐스트 연동
-- 엔진 오류/타임아웃 시 Fail-Safe 폴백 수 생성 또는 세션 안전 종료 처리
+- **하이브리드 엔진 계층 (`ChessAiEngine`)**:
+  - `StockfishUciEngineAdapter`: UCI(Universal Chess Interface) 표준 프로토콜을 사용하는 Stockfish 프로세스를 제어하며, ELO 2000 수준 파라미터(`UCI_LimitStrength`, `UCI_Elo`=2000)를 주입
+  - `JavaFallbackChessAiEngine`: 외부 바이너리가 없는 CI/로컬 환경 및 비정상 프로세스 오류 시 100% 무중단 동작을 보장하는 순수 Java Minimax / Alpha-Beta Pruning 체스 엔진
+- **스레드 및 리소스 격리**: 비동기 전용 스레드 풀(`aiEngineTaskExecutor`)을 통한 논블로킹 수 연산 요청, 5초 타임아웃 강제
+- **보안 및 무결성**: OS 셸을 거치지 않는 바이너리 직접 실행 및 FEN/Move 인자 화이트리스트 검증 (Command Injection 차단)
+- **도메인 결합**: AI 착수 결과를 도메인 `GameService.playMove()`로 전달하여 낙관적 락 검증 후 WebSocket으로 전체 브로드캐스트 전파
 
 ### 4.6 Notification 모듈
 
