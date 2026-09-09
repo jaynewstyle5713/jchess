@@ -26,7 +26,16 @@ public class JavaFallbackChessAiEngine implements ChessAiEngine {
                 return null;
             }
 
-            int depth = targetElo >= 2000 ? 3 : 2;
+            int depth;
+            if (targetElo <= 700) {
+                depth = 1;
+            } else if (targetElo <= 1200) {
+                depth = 2;
+            } else if (targetElo <= 1700) {
+                depth = 2;
+            } else {
+                depth = 3;
+            }
             PieceColor aiColor = gameState.activeColor();
 
             Move bestMove = legalMoves.get(0);

@@ -53,9 +53,17 @@ public class AsyncAiMoveExecutor {
                 int aiLevel = snapshot.aiLevel() != null ? snapshot.aiLevel() : 2000;
                 GameState gameState = GameState.fromFen(snapshot.fen());
 
+                log.info("[AI_EXEC] Starting AI move calculation for game {}, aiLevel={}, fen='{}'", gameId, aiLevel, snapshot.fen());
+
                 aiService.calculateBestMove(gameState, aiLevel).thenAccept(bestMove -> {
-                    if (bestMove == null) return;
+                    if (bestMove == null) {
+                        log.warn("[AI_EXEC] AI returned null move for game {}", gameId);
+                        return;
+                    }
                     try {
+                        log.info("[AI_EXEC] AI selected move {} -> {} (promotion={}) for game {}",
+                                bestMove.from().toAlgebraic(), bestMove.to().toAlgebraic(), bestMove.promotion(), gameId);
+
                         PlayMoveRequest req = new PlayMoveRequest(
                                 bestMove.from().toAlgebraic(),
                                 bestMove.to().toAlgebraic(),
@@ -74,19 +82,24 @@ public class AsyncAiMoveExecutor {
                                 gameId, updated.gameVersion(), "GAME_STATE_UPDATED", payload
                         ));
 
+                        log.info("[AI_EXEC] AI move broadcast completed: gameId={}, newVersion={}, nextTurn={}",
+                                gameId, updated.gameVersion(), updated.turn());
+
                         if (isGameOver(updated.gameStatus())) {
                             sessionManager.broadcast(gameId, EventEnvelope.of(
                                     "evt-" + UUID.randomUUID().toString().substring(0, 8),
                                     gameId, updated.gameVersion(), "GAME_ENDED",
                                     new GameEndedPayload(updated.result(), updated.endReason(), updated.fen(), Instant.now())
                             ));
+                            log.info("[AI_EXEC] Game ended after AI move: gameId={}, status={}, result={}",
+                                    gameId, updated.gameStatus(), updated.result());
                         }
                     } catch (Exception ex) {
-                        log.error("Error executing AI move in {}: {}", gameId, ex.getMessage(), ex);
+                        log.error("[AI_EXEC_ERROR] Error applying AI move in {}: {}", gameId, ex.getMessage(), ex);
                     }
                 });
             } catch (Exception e) {
-                log.error("AI trigger error for {}: {}", snapshot.gameId(), e.getMessage(), e);
+                log.error("[AI_EXEC_ERROR] AI trigger error for {}: {}", snapshot.gameId(), e.getMessage(), e);
             }
         });
     }

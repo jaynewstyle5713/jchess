@@ -188,3 +188,8 @@ Test-NetConnection -ComputerName localhost -Port 5432
 | 2026-09-08 | `docs/architecture.md` 생성, Java 25+/Spring Boot 4/React/TypeScript/WebFlux/JPA 및 단계적 MSA 결정 |
 | 2026-09-08 | Microsoft OpenJDK 25, Node.js LTS, PostgreSQL 18 설치 및 검증 완료 |
 | 2026-09-08 | Spring Boot 4.1.1 Backend 및 Vite React/TypeScript Frontend 스켈레톤 초기화 및 빌드/테스트 검증 완료 |
+| 2026-09-09 | CP-06 React 19 체스보드 UI, 프로모션 모달, 로비 및 WebSocket 실시간 연동 완료 |
+| 2026-09-09 | CP-07 하이브리드 Stockfish UCI AI 체스 엔진(ELO 2000+) 및 비동기 PVC 대국 연동 완료 |
+| 2026-09-09 | CP-08 PVP/PVC E2E 통합 테스트, 보안 인가 검증, 라이브 서버 인수 테스팅 86종 100% All Green 통과 및 최종 릴리스 검수 완료 |
+| 2026-09-09 | `/preview` 스탠드얼론 목업 및 `acceptance_stub_test.js` 실서버 인수 스텁 구축 완료 |
+

@@ -3,11 +3,19 @@ import { GameMode, GameSnapshot, PieceColor, PieceType, Square } from './types/g
 import { GameEndedPayload, GameStateUpdatedPayload, MoveRejectedPayload } from './types/protocol';
 import { Lobby } from './components/Lobby/Lobby';
 import { GameView } from './views/GameView';
+import { GameRulesModal } from './components/RulesModal/GameRulesModal';
 import { useChessWebSocket } from './hooks/useChessWebSocket';
 import { createGameApi, joinGameApi } from './services/api';
 import './App.css';
 
 const INITIAL_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+
+function getAiDisplayName(elo: number): string {
+  if (elo <= 700) return `Stockfish AI (하수 · ${elo})`;
+  if (elo <= 1200) return `Stockfish AI (중수 · ${elo})`;
+  if (elo <= 1700) return `Stockfish AI (고급 · ${elo})`;
+  return `Stockfish AI (초고수 · ${elo})`;
+}
 
 export default function App() {
   const [playerId] = useState(() => `user-${Date.now().toString(36)}`);
@@ -15,6 +23,7 @@ export default function App() {
   const [gameState, setGameState] = useState<GameSnapshot | null>(null);
   const [myColor, setMyColor] = useState<PieceColor | null>('WHITE');
   const [isLoading, setIsLoading] = useState(false);
+  const [isRulesOpen, setIsRulesOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [promoMove, setPromoMove] = useState<{ from: Square; to: Square } | null>(null);
 
@@ -86,6 +95,7 @@ export default function App() {
         playerName: opts.playerName,
       });
       const color = opts.preferredColor === 'RANDOM' ? (Math.random() > 0.5 ? 'WHITE' : 'BLACK') : opts.preferredColor;
+      const aiName = getAiDisplayName(opts.aiLevel);
       setMyColor(color as PieceColor);
       setGameId(data.gameId);
       setGameState({
@@ -98,14 +108,14 @@ export default function App() {
         fen: INITIAL_FEN,
         whitePlayer: {
           id: color === 'WHITE' ? playerId : 'ai-stockfish',
-          name: color === 'WHITE' ? opts.playerName : 'Stockfish AI (2000)',
+          name: color === 'WHITE' ? opts.playerName : aiName,
           remainingTimeMs: opts.baseMinutes * 60 * 1000,
           isOnline: true,
           isAi: color !== 'WHITE' && opts.gameMode === 'PVC',
         },
         blackPlayer: {
           id: color === 'BLACK' ? playerId : (opts.gameMode === 'PVC' ? 'ai-stockfish' : 'waiting'),
-          name: color === 'BLACK' ? opts.playerName : (opts.gameMode === 'PVC' ? 'Stockfish AI (2000)' : '대기 중...'),
+          name: color === 'BLACK' ? opts.playerName : (opts.gameMode === 'PVC' ? aiName : '대기 중...'),
           remainingTimeMs: opts.baseMinutes * 60 * 1000,
           isOnline: true,
           isAi: color !== 'BLACK' && opts.gameMode === 'PVC',
@@ -139,21 +149,36 @@ export default function App() {
           <h1>jchess</h1>
           <span className="badge-tag">실시간 온라인 체스</span>
         </div>
-        {gameId && (
-          <div className="game-status-nav">
-            <span className="nav-game-id">방: <code>{gameId}</code></span>
-            <span className={`connection-badge ${connectionStatus.toLowerCase()}`}>
-              {connectionStatus === 'CONNECTED' ? '🟢 연결됨' : connectionStatus === 'RECONNECTING' ? '🟡 재연결 중' : '🔴 오프라인'}
-            </span>
-          </div>
-        )}
+        <div className="nav-actions">
+          <button
+            type="button"
+            className="nav-rules-btn"
+            onClick={() => setIsRulesOpen(true)}
+            title="게임 방법 및 체스 규칙 확인"
+          >
+            📖 game방법
+          </button>
+          {gameId && (
+            <div className="game-status-nav">
+              <span className="nav-game-id">방: <code>{gameId}</code></span>
+              <span className={`connection-badge ${connectionStatus.toLowerCase()}`}>
+                {connectionStatus === 'CONNECTED' ? '🟢 연결됨' : connectionStatus === 'RECONNECTING' ? '🟡 재연결 중' : '🔴 오프라인'}
+              </span>
+            </div>
+          )}
+        </div>
       </header>
 
       {toast && <div className="toast-notification">{toast}</div>}
 
       <main className="app-main">
         {!gameId || !gameState ? (
-          <Lobby onCreateGame={handleCreate} onJoinGame={handleJoin} isLoading={isLoading} />
+          <Lobby
+            onCreateGame={handleCreate}
+            onJoinGame={handleJoin}
+            onOpenRules={() => setIsRulesOpen(true)}
+            isLoading={isLoading}
+          />
         ) : (
           <GameView
             gameState={gameState}
@@ -175,6 +200,9 @@ export default function App() {
           />
         )}
       </main>
+
+      {/* 게임 방법 모달 */}
+      <GameRulesModal isOpen={isRulesOpen} onClose={() => setIsRulesOpen(false)} />
     </div>
   );
 }

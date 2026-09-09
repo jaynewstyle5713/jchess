@@ -106,15 +106,19 @@ public class ChessWebSocketHandler implements WebSocketHandler {
             Long expectedVersion = root.has("expectedGameVersion") ? root.path("expectedGameVersion").asLong() : null;
             JsonNode payload = root.path("payload");
 
+            log.info("[WS_CMD] GameId: {}, PlayerId: {}, Command: {}, ReqId: {}, Version: {}",
+                    gameId, playerId, type, requestId, expectedVersion);
+
             switch (type) {
                 case "PLAY_MOVE" -> handlePlayMove(session, gameId, playerId, expectedVersion, requestId, payload);
                 case "RESIGN" -> handleResign(gameId, playerId);
                 case "SYNC_STATE" -> handleSyncState(session, gameId);
                 case "OFFER_DRAW" -> handleOfferDraw(gameId, playerId);
-                default -> log.warn("Unknown WebSocket command type: {}", type);
+                default -> log.warn("[WS_CMD] Unknown WebSocket command type: {} for game {}", type, gameId);
             }
         } catch (Exception e) {
-            log.error("Failed to parse WebSocket command: {}", e.getMessage(), e);
+            log.error("[WS_CMD_ERROR] Failed to parse WebSocket command from player {} in game {}: {}",
+                    playerId, gameId, e.getMessage(), e);
             sessionManager.sendToSession(session, EventEnvelope.of(
                     "evt-" + UUID.randomUUID().toString().substring(0, 8),
                     gameId,
@@ -156,6 +160,8 @@ public class ChessWebSocketHandler implements WebSocketHandler {
             );
 
             sessionManager.broadcast(gameId, updateEvent);
+            log.info("[WS_EVENT] Broadcast GAME_STATE_UPDATED: gameId={}, move={}-{}, nextTurn={}, version={}",
+                    gameId, from, to, snapshot.turn(), snapshot.gameVersion());
 
             if (isGameOver(snapshot.gameStatus())) {
                 EventEnvelope<GameEndedPayload> endEvent = EventEnvelope.of(
@@ -166,10 +172,14 @@ public class ChessWebSocketHandler implements WebSocketHandler {
                         new GameEndedPayload(snapshot.result(), snapshot.endReason(), snapshot.fen(), Instant.now())
                 );
                 sessionManager.broadcast(gameId, endEvent);
+                log.info("[WS_EVENT] Broadcast GAME_ENDED: gameId={}, status={}, result={}",
+                        gameId, snapshot.gameStatus(), snapshot.result());
             } else {
                 aiMoveExecutor.triggerAiMoveIfApplicable(snapshot);
             }
         } catch (ChessException ex) {
+            log.warn("[WS_MOVE_REJECTED] Move {}-{} rejected for player {} in game {}: Code={}, Reason='{}'",
+                    from, to, playerId, gameId, ex.getErrorCode(), ex.getMessage());
             EventEnvelope<MoveRejectedPayload> rejectEvent = EventEnvelope.of(
                     "evt-" + UUID.randomUUID().toString().substring(0, 8),
                     gameId,
@@ -179,7 +189,7 @@ public class ChessWebSocketHandler implements WebSocketHandler {
             );
             sessionManager.sendToSession(session, rejectEvent);
         } catch (Exception ex) {
-            log.error("Failed to play move via WebSocket: {}", ex.getMessage(), ex);
+            log.error("[WS_MOVE_ERROR] Failed to play move via WebSocket in game {}: {}", gameId, ex.getMessage(), ex);
         }
     }
 

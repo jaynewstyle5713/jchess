@@ -21,6 +21,8 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiErrorResponse> handleChessException(ChessException ex) {
         ErrorCode code = ex.getErrorCode();
         HttpStatus status = HttpStatus.valueOf(code.getHttpStatus());
+        log.warn("[CHESS_ERROR] Code: {}, Status: {}, GameId: {}, GameVersion: {}, Message: '{}'",
+                code.name(), status.value(), ex.getGameId(), ex.getGameVersion(), ex.getMessage());
         ApiErrorResponse response = ApiErrorResponse.of(
                 code.name(),
                 ex.getMessage(),
@@ -34,6 +36,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(OptimisticLockingFailureException.class)
     public ResponseEntity<ApiErrorResponse> handleOptimisticLockingFailure(OptimisticLockingFailureException ex) {
+        log.warn("[CONCURRENCY_CONFLICT] Optimistic lock conflict detected: {}", ex.getMessage());
         ErrorCode code = ErrorCode.GAME_VERSION_CONFLICT;
         ApiErrorResponse response = ApiErrorResponse.of(
                 code.name(),
@@ -53,6 +56,8 @@ public class GlobalExceptionHandler {
                 ? ex.getBindingResult().getFieldError().getField() + ": " + ex.getBindingResult().getFieldError().getDefaultMessage()
                 : "요청 본문 검증에 실패했습니다.";
 
+        log.warn("[VALIDATION_ERROR] Request payload validation failed: {}", message);
+
         ApiErrorResponse response = ApiErrorResponse.of(
                 code.name(),
                 message,
@@ -66,6 +71,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiErrorResponse> handleIllegalArgument(IllegalArgumentException ex) {
+        log.warn("[ILLEGAL_ARGUMENT] Invalid argument: {}", ex.getMessage());
         ErrorCode code = ErrorCode.INVALID_REQUEST_PAYLOAD;
         ApiErrorResponse response = ApiErrorResponse.of(
                 code.name(),
@@ -80,6 +86,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<ApiErrorResponse> handleIllegalState(IllegalStateException ex) {
+        log.warn("[ILLEGAL_STATE] Invalid game state: {}", ex.getMessage());
         ErrorCode code = ErrorCode.GAME_ALREADY_FINISHED;
         ApiErrorResponse response = ApiErrorResponse.of(
                 code.name(),
@@ -94,7 +101,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleGeneralException(Exception ex) {
-        log.error("Unhandled server exception: {}", ex.getMessage(), ex);
+        log.error("[INTERNAL_ERROR] Unhandled server exception: {}", ex.getMessage(), ex);
         ErrorCode code = ErrorCode.INTERNAL_SERVER_ERROR;
         ApiErrorResponse response = ApiErrorResponse.of(
                 code.name(),
@@ -107,4 +114,5 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
     }
 }
+
 

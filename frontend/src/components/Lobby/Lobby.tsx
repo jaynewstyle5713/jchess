@@ -2,6 +2,20 @@ import React, { useState } from 'react';
 import { GameMode, PieceColor } from '../../types/game';
 import './Lobby.css';
 
+export interface AiLevelOption {
+  levelKey: string;
+  label: string;
+  elo: number;
+  desc: string;
+}
+
+export const AI_LEVEL_PRESETS: AiLevelOption[] = [
+  { levelKey: 'BEGINNER', label: 'AI-하수', elo: 600, desc: '입문 (600)' },
+  { levelKey: 'INTERMEDIATE', label: 'AI-중수', elo: 1100, desc: '중급 (1100)' },
+  { levelKey: 'ADVANCED', label: 'AI-고급', elo: 1600, desc: '상급 (1600)' },
+  { levelKey: 'EXPERT', label: 'AI-초고수', elo: 2000, desc: '초고수 (2000)' },
+];
+
 interface LobbyProps {
   onCreateGame: (options: {
     gameMode: GameMode;
@@ -12,6 +26,7 @@ interface LobbyProps {
     playerName: string;
   }) => void;
   onJoinGame: (gameId: string, playerName: string) => void;
+  onOpenRules: () => void;
   isLoading: boolean;
 }
 
@@ -22,8 +37,9 @@ const TIME_PRESETS = [
   { name: 'Classical 15+10', base: 15, inc: 10 },
 ];
 
-export const Lobby: React.FC<LobbyProps> = ({ onCreateGame, onJoinGame, isLoading }) => {
+export const Lobby: React.FC<LobbyProps> = ({ onCreateGame, onJoinGame, onOpenRules, isLoading }) => {
   const [gameMode, setGameMode] = useState<GameMode>('PVC');
+  const [selectedAiIdx, setSelectedAiIdx] = useState(3); // 기본값: AI-초고수 (2000)
   const [selectedTimeIdx, setSelectedTimeIdx] = useState(2); // Rapid 10+0
   const [preferredColor, setPreferredColor] = useState<PieceColor | 'RANDOM'>('WHITE');
   const [playerName, setPlayerName] = useState('플레이어');
@@ -32,9 +48,10 @@ export const Lobby: React.FC<LobbyProps> = ({ onCreateGame, onJoinGame, isLoadin
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
     const time = TIME_PRESETS[selectedTimeIdx];
+    const ai = AI_LEVEL_PRESETS[selectedAiIdx];
     onCreateGame({
       gameMode,
-      aiLevel: 2000,
+      aiLevel: ai.elo,
       baseMinutes: time.base,
       incrementSeconds: time.inc,
       preferredColor,
@@ -51,8 +68,15 @@ export const Lobby: React.FC<LobbyProps> = ({ onCreateGame, onJoinGame, isLoadin
   return (
     <div className="lobby-container">
       <div className="lobby-card">
-        <h2 className="lobby-title">체스 대국 시작</h2>
-        <p className="lobby-subtitle">새 게임을 생성하거나 참가할 방 ID를 입력하세요.</p>
+        <div className="lobby-header-row">
+          <div>
+            <h2 className="lobby-title">체스 대국 시작</h2>
+            <p className="lobby-subtitle">새 게임을 생성하거나 참가할 방 ID를 입력하세요.</p>
+          </div>
+          <button type="button" className="btn-rules-guide" onClick={onOpenRules} title="체스 규칙 및 대국 방법 안내">
+            📖 game방법
+          </button>
+        </div>
 
         {/* 닉네임 입력 */}
         <div className="form-group">
@@ -77,7 +101,7 @@ export const Lobby: React.FC<LobbyProps> = ({ onCreateGame, onJoinGame, isLoadin
               className={`mode-btn ${gameMode === 'PVC' ? 'active' : ''}`}
               onClick={() => setGameMode('PVC')}
             >
-              🤖 AI 대전 (Stockfish 2000+)
+              🤖 AI 대전 (Stockfish)
             </button>
             <button
               type="button"
@@ -88,6 +112,26 @@ export const Lobby: React.FC<LobbyProps> = ({ onCreateGame, onJoinGame, isLoadin
             </button>
           </div>
         </div>
+
+        {/* AI 레벨 선택 (PVC 모드 시 표시) */}
+        {gameMode === 'PVC' && (
+          <div className="form-group">
+            <label>AI 난이도 레벨 (Rating 300 - 2000)</label>
+            <div className="ai-level-grid">
+              {AI_LEVEL_PRESETS.map((ai, idx) => (
+                <button
+                  key={ai.levelKey}
+                  type="button"
+                  className={`ai-level-btn ${selectedAiIdx === idx ? 'active' : ''}`}
+                  onClick={() => setSelectedAiIdx(idx)}
+                >
+                  <span className="ai-level-label">{ai.label}</span>
+                  <span className="ai-level-elo">ELO {ai.elo}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* 시간 형식 선택 */}
         <div className="form-group">
@@ -141,7 +185,7 @@ export const Lobby: React.FC<LobbyProps> = ({ onCreateGame, onJoinGame, isLoadin
           onClick={handleCreate}
           disabled={isLoading}
         >
-          {isLoading ? '생성 중...' : gameMode === 'PVC' ? 'AI 대국 즉시 시작' : '새 대국 방 만들기'}
+          {isLoading ? '생성 중...' : gameMode === 'PVC' ? `${AI_LEVEL_PRESETS[selectedAiIdx].label} 대국 시작` : '새 대국 방 만들기'}
         </button>
 
         <div className="divider"><span>또는 기존 대국 참가</span></div>

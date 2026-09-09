@@ -25,7 +25,7 @@ export async function createGameApi(params: CreateGameParams) {
     headers['X-Player-Id'] = params.playerId;
   }
   if (params.playerName) {
-    headers['X-Player-Name'] = params.playerName;
+    headers['X-Player-Name'] = encodeURIComponent(params.playerName);
   }
 
   const url = `${getApiBaseUrl()}/api/v1/games`;
@@ -57,7 +57,7 @@ export async function joinGameApi(gameId: string, playerId?: string, playerName?
     headers['X-Player-Id'] = playerId;
   }
   if (playerName) {
-    headers['X-Player-Name'] = playerName;
+    headers['X-Player-Name'] = encodeURIComponent(playerName);
   }
 
   const url = `${getApiBaseUrl()}/api/v1/games/${gameId}/join`;

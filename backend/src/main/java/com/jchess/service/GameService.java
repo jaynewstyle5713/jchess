@@ -8,6 +8,8 @@ import com.jchess.infrastructure.persistence.GameEntity;
 import com.jchess.infrastructure.persistence.GameMoveEntity;
 import com.jchess.infrastructure.persistence.GameMoveRepository;
 import com.jchess.infrastructure.persistence.GameRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,6 +21,8 @@ import java.util.UUID;
 
 @Service
 public class GameService {
+
+    private static final Logger log = LoggerFactory.getLogger(GameService.class);
 
     private final GameRepository gameRepository;
     private final GameMoveRepository gameMoveRepository;
@@ -59,16 +63,17 @@ public class GameService {
         if (mode == GameMode.PVC) {
             entity.setStatus(GameStatus.ACTIVE);
             entity.setLastMoveAt(now);
+            String aiDisplayName = getAiDisplayName(aiLevel);
             if (isBlack) {
                 entity.setBlackPlayerId(playerId);
                 entity.setBlackPlayerName(playerName);
                 entity.setWhitePlayerId("ai-stockfish");
-                entity.setWhitePlayerName("Stockfish AI (ELO " + aiLevel + ")");
+                entity.setWhitePlayerName(aiDisplayName);
             } else {
                 entity.setWhitePlayerId(playerId);
                 entity.setWhitePlayerName(playerName);
                 entity.setBlackPlayerId("ai-stockfish");
-                entity.setBlackPlayerName("Stockfish AI (ELO " + aiLevel + ")");
+                entity.setBlackPlayerName(aiDisplayName);
             }
         } else {
             entity.setStatus(GameStatus.WAITING_FOR_OPPONENT);
@@ -82,6 +87,8 @@ public class GameService {
         }
 
         GameEntity saved = gameRepository.saveAndFlush(entity);
+        log.info("[GAME_SERVICE] Game created: id={}, mode={}, aiLevel={}, white={}, black={}",
+                saved.getId(), saved.getGameMode(), saved.getAiLevel(), saved.getWhitePlayerId(), saved.getBlackPlayerId());
 
         PlayerInfoDto white = saved.getWhitePlayerId() != null
                 ? new PlayerInfoDto(saved.getWhitePlayerId(), saved.getWhitePlayerName(), saved.getWhiteRemainingTimeMs(), true)
@@ -96,9 +103,13 @@ public class GameService {
     @Transactional
     public JoinGameResponse joinGame(String gameId, String playerId, String playerName) {
         GameEntity entity = gameRepository.findById(gameId)
-                .orElseThrow(() -> new GameNotFoundException(gameId));
+                .orElseThrow(() -> {
+                    log.warn("[GAME_SERVICE] Join failed: Game not found id={}", gameId);
+                    return new GameNotFoundException(gameId);
+                });
 
         if (entity.getStatus() != GameStatus.WAITING_FOR_OPPONENT) {
+            log.warn("[GAME_SERVICE] Join failed: Game {} is not in WAITING state (status={})", gameId, entity.getStatus());
             throw new ChessException(ErrorCode.INVALID_REQUEST_PAYLOAD, "이미 대국이 시작되었거나 참가할 수 없는 상태입니다.", gameId, entity.getVersion());
         }
 
@@ -106,12 +117,14 @@ public class GameService {
 
         if (entity.getWhitePlayerId() == null) {
             if (playerId.equals(entity.getBlackPlayerId())) {
+                log.warn("[GAME_SERVICE] Join failed: Player {} already joined as black in game {}", playerId, gameId);
                 throw new ChessException(ErrorCode.INVALID_REQUEST_PAYLOAD, "이미 대국에 참가한 플레이어입니다.", gameId, entity.getVersion());
             }
             entity.setWhitePlayerId(playerId);
             entity.setWhitePlayerName(playerName);
         } else if (entity.getBlackPlayerId() == null) {
             if (playerId.equals(entity.getWhitePlayerId())) {
+                log.warn("[GAME_SERVICE] Join failed: Player {} already joined as white in game {}", playerId, gameId);
                 throw new ChessException(ErrorCode.INVALID_REQUEST_PAYLOAD, "이미 대국에 참가한 플레이어입니다.", gameId, entity.getVersion());
             }
             entity.setBlackPlayerId(playerId);
@@ -123,6 +136,8 @@ public class GameService {
         entity.setUpdatedAt(now);
 
         GameEntity saved = gameRepository.save(entity);
+        log.info("[GAME_SERVICE] Player {} joined game {}. White={}, Black={}, Status={}",
+                playerId, gameId, saved.getWhitePlayerId(), saved.getBlackPlayerId(), saved.getStatus());
 
         PlayerInfoDto white = new PlayerInfoDto(saved.getWhitePlayerId(), saved.getWhitePlayerName(), saved.getWhiteRemainingTimeMs(), true);
         PlayerInfoDto black = new PlayerInfoDto(saved.getBlackPlayerId(), saved.getBlackPlayerName(), saved.getBlackRemainingTimeMs(), true);
@@ -142,13 +157,19 @@ public class GameService {
     @Transactional
     public GameSnapshotResponse playMove(String gameId, PlayMoveRequest request, String playerId, Long expectedVersion, String requestId) {
         GameEntity entity = gameRepository.findById(gameId)
-                .orElseThrow(() -> new GameNotFoundException(gameId));
+                .orElseThrow(() -> {
+                    log.warn("[GAME_SERVICE] PlayMove failed: Game not found id={}", gameId);
+                    return new GameNotFoundException(gameId);
+                });
 
         if (expectedVersion != null && !expectedVersion.equals(entity.getVersion())) {
+            log.warn("[GAME_SERVICE] PlayMove failed: Version conflict for game {}. Expected: {}, Actual: {}",
+                    gameId, expectedVersion, entity.getVersion());
             throw new GameVersionConflictException("대국 버전이 일치하지 않습니다. 최신 상태 동기화가 필요합니다.", gameId, entity.getVersion());
         }
 
         if (isEndedStatus(entity.getStatus())) {
+            log.warn("[GAME_SERVICE] PlayMove failed: Game {} already finished with status {}", gameId, entity.getStatus());
             throw new GameAlreadyFinishedException("이미 종료된 대국입니다.", gameId, entity.getVersion());
         }
 
@@ -156,11 +177,14 @@ public class GameService {
         boolean isBlack = playerId.equals(entity.getBlackPlayerId());
 
         if (!isWhite && !isBlack) {
+            log.warn("[GAME_SERVICE] PlayMove failed: Unauthorized player {} in game {}", playerId, gameId);
             throw new UnauthorizedPlayerException("해당 대국의 참가자가 아닙니다.", gameId);
         }
 
         PieceColor playerColor = isWhite ? PieceColor.WHITE : PieceColor.BLACK;
         if (entity.getCurrentTurn() != playerColor) {
+            log.warn("[GAME_SERVICE] PlayMove failed: Turn mismatch in game {}. Current turn: {}, Player: {}",
+                    gameId, entity.getCurrentTurn(), playerColor);
             throw new NotYourTurnException("현재 플레이어의 차례가 아닙니다.", gameId, entity.getVersion());
         }
 
@@ -170,6 +194,7 @@ public class GameService {
             long elapsedMs = Duration.between(entity.getLastMoveAt(), now).toMillis();
             long remainingMs = isWhite ? entity.getWhiteRemainingTimeMs() : entity.getBlackRemainingTimeMs();
             if (remainingMs - elapsedMs <= 0) {
+                log.info("[GAME_SERVICE] Timeout detected during playMove in game {} for color {}", gameId, playerColor);
                 applyTimeout(entity, playerColor);
                 gameRepository.save(entity);
                 return toSnapshotResponse(entity);
@@ -189,6 +214,8 @@ public class GameService {
         Move move = Move.of(from, to, request.promotion());
 
         if (!currentState.isLegalMove(move)) {
+            log.warn("[GAME_SERVICE] PlayMove failed: Illegal move {} -> {} (promotion={}) in game {}, fen='{}'",
+                    request.from(), request.to(), request.promotion(), gameId, currentState.toFen());
             throw new IllegalMoveException("합법적인 수가 아닙니다: " + request.from() + " -> " + request.to(), gameId, entity.getVersion());
         }
 
@@ -214,15 +241,21 @@ public class GameService {
         entity.setUpdatedAt(now);
 
         GameEntity saved = gameRepository.saveAndFlush(entity);
+        log.debug("[GAME_SERVICE] Move executed successfully: gameId={}, move={}, newVersion={}, status={}",
+                gameId, move.toUci(), saved.getVersion(), saved.getStatus());
         return toSnapshotResponse(saved);
     }
 
     @Transactional
     public GameSnapshotResponse resign(String gameId, String playerId) {
         GameEntity entity = gameRepository.findById(gameId)
-                .orElseThrow(() -> new GameNotFoundException(gameId));
+                .orElseThrow(() -> {
+                    log.warn("[GAME_SERVICE] Resign failed: Game not found id={}", gameId);
+                    return new GameNotFoundException(gameId);
+                });
 
         if (isEndedStatus(entity.getStatus())) {
+            log.warn("[GAME_SERVICE] Resign failed: Game {} already ended (status={})", gameId, entity.getStatus());
             throw new GameAlreadyFinishedException("이미 종료된 대국입니다.", gameId, entity.getVersion());
         }
 
@@ -230,6 +263,7 @@ public class GameService {
         boolean isBlack = playerId.equals(entity.getBlackPlayerId());
 
         if (!isWhite && !isBlack) {
+            log.warn("[GAME_SERVICE] Resign failed: Unauthorized player {} for game {}", playerId, gameId);
             throw new UnauthorizedPlayerException("해당 대국의 참가자가 아닙니다.", gameId);
         }
 
@@ -240,6 +274,8 @@ public class GameService {
         entity.setUpdatedAt(clock.instant());
 
         GameEntity saved = gameRepository.save(entity);
+        log.info("[GAME_SERVICE] Game {} resigned by player {} (color={}), winner={}",
+                gameId, playerId, resignColor, saved.getResult());
         return toSnapshotResponse(saved);
     }
 
@@ -267,6 +303,18 @@ public class GameService {
             entity.setWhiteRemainingTimeMs(0);
         } else {
             entity.setBlackRemainingTimeMs(0);
+        }
+    }
+
+    private String getAiDisplayName(int aiLevel) {
+        if (aiLevel <= 700) {
+            return "Stockfish AI (하수 · " + aiLevel + ")";
+        } else if (aiLevel <= 1200) {
+            return "Stockfish AI (중수 · " + aiLevel + ")";
+        } else if (aiLevel <= 1700) {
+            return "Stockfish AI (고급 · " + aiLevel + ")";
+        } else {
+            return "Stockfish AI (초고수 · " + aiLevel + ")";
         }
     }
 

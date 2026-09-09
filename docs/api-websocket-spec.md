@@ -57,7 +57,7 @@ REST와 WebSocket 공통으로 사용하는 표준 에러 규격이다.
 ```json
 {
   "gameMode": "PVP", // "PVP" | "PVC" (기본값: "PVP")
-  "aiLevel": 2000,   // PVC 모드일 때 AI ELO 레이팅 (기본값: 2000)
+  "aiLevel": 2000,   // PVC 모드 AI 난이도 ELO (600: 하수, 1100: 중수, 1600: 고급, 2000: 초고수 / 기본값: 2000)
   "timeControl": {
     "baseMinutes": 10,
     "incrementSeconds": 0
@@ -82,10 +82,10 @@ REST와 WebSocket 공통으로 사용하는 표준 에러 규격이다.
 {
   "gameId": "game-pvc-1234",
   "gameMode": "PVC",
-  "aiLevel": 2000,
+  "aiLevel": 1100,
   "status": "ACTIVE",
   "whitePlayer": { "playerId": "user-player", "name": "Player 1" },
-  "blackPlayer": { "playerId": "ai-stockfish", "name": "Stockfish AI (ELO 2000)" },
+  "blackPlayer": { "playerId": "ai-stockfish", "name": "Stockfish AI (중수 · 1100)" },
   "gameVersion": 0,
   "createdAt": "2026-09-08T12:00:00Z"
 }
