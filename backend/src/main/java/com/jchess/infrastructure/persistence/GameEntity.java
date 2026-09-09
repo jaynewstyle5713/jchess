@@ -1,6 +1,7 @@
 package com.jchess.infrastructure.persistence;
 
 import com.jchess.domain.model.GameEndReason;
+import com.jchess.domain.model.GameMode;
 import com.jchess.domain.model.GameResult;
 import com.jchess.domain.model.GameStatus;
 import com.jchess.domain.model.PieceColor;
@@ -23,6 +24,13 @@ public class GameEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
     private GameStatus status;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 16)
+    private GameMode gameMode = GameMode.PVP;
+
+    @Column
+    private Integer aiLevel = 2000;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)
@@ -82,6 +90,12 @@ public class GameEntity {
 
     public GameStatus getStatus() { return status; }
     public void setStatus(GameStatus status) { this.status = status; }
+
+    public GameMode getGameMode() { return gameMode; }
+    public void setGameMode(GameMode gameMode) { this.gameMode = gameMode; }
+
+    public Integer getAiLevel() { return aiLevel; }
+    public void setAiLevel(Integer aiLevel) { this.aiLevel = aiLevel; }
 
     public PieceColor getCurrentTurn() { return currentTurn; }
     public void setCurrentTurn(PieceColor currentTurn) { this.currentTurn = currentTurn; }

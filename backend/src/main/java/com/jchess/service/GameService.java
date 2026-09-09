@@ -37,10 +37,13 @@ public class GameService {
 
         TimeControlDto tc = request.timeControl();
         long initialTimeMs = tc.baseMinutes() * 60 * 1000L;
+        GameMode mode = request.gameMode() != null ? request.gameMode() : GameMode.PVP;
+        int aiLevel = request.aiLevel() != null ? request.aiLevel() : 2000;
 
         GameEntity entity = new GameEntity();
         entity.setId(gameId);
-        entity.setStatus(GameStatus.WAITING_FOR_OPPONENT);
+        entity.setGameMode(mode);
+        entity.setAiLevel(aiLevel);
         entity.setCurrentTurn(PieceColor.WHITE);
         entity.setCurrentFen(FenParser.INITIAL_FEN);
         entity.setBaseMinutes(tc.baseMinutes());
@@ -51,15 +54,34 @@ public class GameService {
         entity.setUpdatedAt(now);
 
         String preferredColor = request.preferredColor();
-        if ("BLACK".equalsIgnoreCase(preferredColor)) {
-            entity.setBlackPlayerId(playerId);
-            entity.setBlackPlayerName(playerName);
+        boolean isBlack = "BLACK".equalsIgnoreCase(preferredColor);
+
+        if (mode == GameMode.PVC) {
+            entity.setStatus(GameStatus.ACTIVE);
+            entity.setLastMoveAt(now);
+            if (isBlack) {
+                entity.setBlackPlayerId(playerId);
+                entity.setBlackPlayerName(playerName);
+                entity.setWhitePlayerId("ai-stockfish");
+                entity.setWhitePlayerName("Stockfish AI (ELO " + aiLevel + ")");
+            } else {
+                entity.setWhitePlayerId(playerId);
+                entity.setWhitePlayerName(playerName);
+                entity.setBlackPlayerId("ai-stockfish");
+                entity.setBlackPlayerName("Stockfish AI (ELO " + aiLevel + ")");
+            }
         } else {
-            entity.setWhitePlayerId(playerId);
-            entity.setWhitePlayerName(playerName);
+            entity.setStatus(GameStatus.WAITING_FOR_OPPONENT);
+            if (isBlack) {
+                entity.setBlackPlayerId(playerId);
+                entity.setBlackPlayerName(playerName);
+            } else {
+                entity.setWhitePlayerId(playerId);
+                entity.setWhitePlayerName(playerName);
+            }
         }
 
-        GameEntity saved = gameRepository.save(entity);
+        GameEntity saved = gameRepository.saveAndFlush(entity);
 
         PlayerInfoDto white = saved.getWhitePlayerId() != null
                 ? new PlayerInfoDto(saved.getWhitePlayerId(), saved.getWhitePlayerName(), saved.getWhiteRemainingTimeMs(), true)
@@ -68,7 +90,7 @@ public class GameService {
                 ? new PlayerInfoDto(saved.getBlackPlayerId(), saved.getBlackPlayerName(), saved.getBlackRemainingTimeMs(), true)
                 : null;
 
-        return new CreateGameResponse(saved.getId(), saved.getStatus(), white, black, saved.getVersion(), saved.getCreatedAt());
+        return new CreateGameResponse(saved.getId(), saved.getGameMode(), saved.getAiLevel(), saved.getStatus(), white, black, saved.getVersion(), saved.getCreatedAt());
     }
 
     @Transactional
@@ -191,7 +213,7 @@ public class GameService {
         entity.setEndReason(nextState.endReason());
         entity.setUpdatedAt(now);
 
-        GameEntity saved = gameRepository.save(entity);
+        GameEntity saved = gameRepository.saveAndFlush(entity);
         return toSnapshotResponse(saved);
     }
 
@@ -261,7 +283,7 @@ public class GameService {
                 ? new PlayerInfoDto(entity.getBlackPlayerId(), entity.getBlackPlayerName(), entity.getBlackRemainingTimeMs(), true)
                 : null;
 
-        Optional<GameMoveEntity> lastMoveOpt = gameMoveRepository.findTopByGameIdOrderByMoveNumberDesc(entity.getId());
+        Optional<GameMoveEntity> lastMoveOpt = gameMoveRepository.findTopByGameIdOrderByIdDesc(entity.getId());
         MoveDto lastMove = lastMoveOpt.map(m -> new MoveDto(
                 m.getFromSquare(),
                 m.getToSquare(),
@@ -275,6 +297,8 @@ public class GameService {
 
         return new GameSnapshotResponse(
                 entity.getId(),
+                entity.getGameMode(),
+                entity.getAiLevel(),
                 entity.getStatus(),
                 entity.getVersion(),
                 entity.getCurrentTurn(),

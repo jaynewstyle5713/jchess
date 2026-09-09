@@ -1,6 +1,7 @@
 package com.jchess.api.dto;
 
 import com.jchess.domain.model.GameEndReason;
+import com.jchess.domain.model.GameMode;
 import com.jchess.domain.model.GameResult;
 import com.jchess.domain.model.GameStatus;
 import com.jchess.domain.model.PieceColor;
@@ -9,6 +10,8 @@ import java.time.Instant;
 
 public record GameSnapshotResponse(
         String gameId,
+        GameMode gameMode,
+        Integer aiLevel,
         GameStatus gameStatus,
         Long gameVersion,
         PieceColor turn,
@@ -22,3 +25,4 @@ public record GameSnapshotResponse(
         Instant createdAt,
         Instant updatedAt
 ) {}
+

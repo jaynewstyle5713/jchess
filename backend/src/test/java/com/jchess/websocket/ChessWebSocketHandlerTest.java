@@ -1,8 +1,10 @@
 package com.jchess.websocket;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jchess.ai.AsyncAiMoveExecutor;
 import com.jchess.api.dto.*;
 import com.jchess.config.ClockConfig;
+import com.jchess.domain.model.GameMode;
 import com.jchess.domain.model.GameStatus;
 import com.jchess.domain.model.PieceColor;
 import com.jchess.service.GameService;
@@ -31,6 +33,7 @@ class ChessWebSocketHandlerTest {
     private GameService gameService;
     private GameSessionManager sessionManager;
     private ObjectMapper objectMapper;
+    private AsyncAiMoveExecutor aiMoveExecutor;
     private ChessWebSocketHandler handler;
 
     @BeforeEach
@@ -38,7 +41,8 @@ class ChessWebSocketHandlerTest {
         gameService = Mockito.mock(GameService.class);
         objectMapper = new ClockConfig().objectMapper();
         sessionManager = new GameSessionManager(objectMapper);
-        handler = new ChessWebSocketHandler(gameService, sessionManager, objectMapper);
+        aiMoveExecutor = Mockito.mock(AsyncAiMoveExecutor.class);
+        handler = new ChessWebSocketHandler(gameService, sessionManager, objectMapper, aiMoveExecutor);
     }
 
     @Test
@@ -86,7 +90,7 @@ class ChessWebSocketHandlerTest {
         when(session.getHandshakeInfo()).thenReturn(handshake);
 
         GameSnapshotResponse initialSnapshot = new GameSnapshotResponse(
-                "game-100", GameStatus.ACTIVE, 1L, PieceColor.WHITE, "initial-fen",
+                "game-100", GameMode.PVP, 2000, GameStatus.ACTIVE, 1L, PieceColor.WHITE, "initial-fen",
                 new PlayerInfoDto("user-white", "Alice", 600000L, true),
                 new PlayerInfoDto("user-black", "Bob", 600000L, true),
                 null, false, null, null, Instant.now(), Instant.now()
@@ -94,7 +98,7 @@ class ChessWebSocketHandlerTest {
         when(gameService.getGameSnapshot("game-100")).thenReturn(initialSnapshot);
 
         GameSnapshotResponse updatedSnapshot = new GameSnapshotResponse(
-                "game-100", GameStatus.ACTIVE, 2L, PieceColor.BLACK, "fen-after-e4",
+                "game-100", GameMode.PVP, 2000, GameStatus.ACTIVE, 2L, PieceColor.BLACK, "fen-after-e4",
                 new PlayerInfoDto("user-white", "Alice", 595000L, true),
                 new PlayerInfoDto("user-black", "Bob", 600000L, true),
                 new MoveDto("e2", "e4", null, null, null, "e2e4"),
@@ -145,7 +149,7 @@ class ChessWebSocketHandlerTest {
         when(session.getHandshakeInfo()).thenReturn(handshake);
 
         GameSnapshotResponse resignSnapshot = new GameSnapshotResponse(
-                "game-200", GameStatus.RESIGNED, 2L, PieceColor.WHITE, "fen-after-resign",
+                "game-200", GameMode.PVP, 2000, GameStatus.RESIGNED, 2L, PieceColor.WHITE, "fen-after-resign",
                 new PlayerInfoDto("user-white", "Alice", 500000L, true),
                 new PlayerInfoDto("user-black", "Bob", 600000L, true),
                 null, false, com.jchess.domain.model.GameResult.BLACK_WON, com.jchess.domain.model.GameEndReason.RESIGNATION,
@@ -192,7 +196,7 @@ class ChessWebSocketHandlerTest {
         when(session.getHandshakeInfo()).thenReturn(handshake);
 
         GameSnapshotResponse snapshot = new GameSnapshotResponse(
-                "game-300", GameStatus.ACTIVE, 3L, PieceColor.WHITE, "sync-fen",
+                "game-300", GameMode.PVP, 2000, GameStatus.ACTIVE, 3L, PieceColor.WHITE, "sync-fen",
                 new PlayerInfoDto("user-white", "Alice", 500000L, true),
                 new PlayerInfoDto("user-black", "Bob", 600000L, true),
                 null, false, null, null, Instant.now(), Instant.now()

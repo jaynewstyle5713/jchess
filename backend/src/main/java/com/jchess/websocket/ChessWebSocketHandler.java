@@ -2,6 +2,7 @@ package com.jchess.websocket;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jchess.ai.AsyncAiMoveExecutor;
 import com.jchess.api.dto.*;
 import com.jchess.domain.exception.ChessException;
 import com.jchess.domain.model.GameStatus;
@@ -27,11 +28,16 @@ public class ChessWebSocketHandler implements WebSocketHandler {
     private final GameService gameService;
     private final GameSessionManager sessionManager;
     private final ObjectMapper objectMapper;
+    private final AsyncAiMoveExecutor aiMoveExecutor;
 
-    public ChessWebSocketHandler(GameService gameService, GameSessionManager sessionManager, ObjectMapper objectMapper) {
+    public ChessWebSocketHandler(GameService gameService,
+                                 GameSessionManager sessionManager,
+                                 ObjectMapper objectMapper,
+                                 AsyncAiMoveExecutor aiMoveExecutor) {
         this.gameService = gameService;
         this.sessionManager = sessionManager;
         this.objectMapper = objectMapper;
+        this.aiMoveExecutor = aiMoveExecutor;
     }
 
     @Override
@@ -60,6 +66,9 @@ public class ChessWebSocketHandler implements WebSocketHandler {
                         "PLAYER_CONNECTION_CHANGED",
                         new PlayerConnectionChangedPayload(playerId, true)
                 ));
+
+                aiMoveExecutor.triggerAiMoveIfApplicable(snapshot);
+
                 return sink.asFlux().startWith(json);
             } catch (Exception e) {
                 log.error("Failed to generate initial snapshot: {}", e.getMessage());
@@ -157,6 +166,8 @@ public class ChessWebSocketHandler implements WebSocketHandler {
                         new GameEndedPayload(snapshot.result(), snapshot.endReason(), snapshot.fen(), Instant.now())
                 );
                 sessionManager.broadcast(gameId, endEvent);
+            } else {
+                aiMoveExecutor.triggerAiMoveIfApplicable(snapshot);
             }
         } catch (ChessException ex) {
             EventEnvelope<MoveRejectedPayload> rejectEvent = EventEnvelope.of(

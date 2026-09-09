@@ -8,6 +8,8 @@ import java.util.Optional;
 
 @Repository
 public interface GameMoveRepository extends JpaRepository<GameMoveEntity, Long> {
+    List<GameMoveEntity> findByGameIdOrderByIdAsc(String gameId);
     List<GameMoveEntity> findByGameIdOrderByMoveNumberAsc(String gameId);
-    Optional<GameMoveEntity> findTopByGameIdOrderByMoveNumberDesc(String gameId);
+    Optional<GameMoveEntity> findTopByGameIdOrderByIdDesc(String gameId);
 }
+
