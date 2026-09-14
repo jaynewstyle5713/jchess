@@ -15,6 +15,7 @@
 | **REQ-UAT-05** | `JCHESS-UAT-05` | 대국 중 양측 기물 점수 및 실시간 형국 유불리 판정 상단 표기 | PM, UX, TL, SM, QM | `P1 (High)` | `VERIFIED` |
 | **REQ-UAT-06** | `JCHESS-UAT-06` | '무르기' 요청 기능 및 AI 난이도별 차등 횟수(3~10회) 관리 | PM, UX, TL, SM, QM | `P1 (High)` | `VERIFIED` |
 | **REQ-UAT-07** | `JCHESS-UAT-07` | AI 난이도별 ELO 레이팅 기준, 출처 및 레벨 상세 안내 팝업 신설 | PM, UX, TL, SM, QM | `P1 (High)` | `VERIFIED` |
+| **REQ-UAT-08** | `JCHESS-UAT-08` | SWT(시나리오 라이터) IM/GM급 전문 체스 실시간 해설 멘트 및 Machine Move 엔진 탑재 | PM, SWT, UX, TL, SM, QM | `P1 (High)` | `VERIFIED` |
 
 ---
 
@@ -358,4 +359,37 @@
 1. **[AC-01] 버튼 클릭 및 모달 팝업**: 로비에서 "레이팅 기준" 클릭 시 0.1초 내에 ELO 설명 모달이 렌더링되어야 한다.
 2. **[AC-02] 5개 레벨 출처/기준 정확성**: FIDE/Chess.com 기준의 600, 900, 1300, 1700, 2000 ELO 설명이 정확히 표기되어야 한다.
 3. **[AC-03] 닫기 인터랙션**: ESC 키, 닫기 버튼, 백드롭 클릭 시 정상 닫힘을 검증한다.
+
+
+---
+
+### [JCHESS-UAT-08] SWT(시나리오 라이터) IM/GM급 전문 체스 실시간 해설 멘트 및 Machine Move 엔진 탑재
+
+- **티켓 ID**: `JCHESS-UAT-08`
+- **요구사항 ID**: `REQ-UAT-08`
+- **우선순위**: `P1 (High)`
+- **상태**: `VERIFIED` (구현 및 검증 완료)
+
+#### 1. 사용자 원문 피드백
+> *"중계석에 멘트가 전문적이지 않고, 형식적 이라고 함. 즉시, agent 를 추가 합니다. swt(secinario writer). 실시간 온라인 chess site 2-3개 의 중계 history와 fide 나 git hub 의 ai 체스 대전 시 machine move 라는 표현을 자주 보는데 그러한 ment 를 사용 할 수 있는 고급 중계 멘트를 준비 해 달라고 하고, swt 에게. swt 는 ELO IM 이나 GM 급의 전문가가 평가 할 수 있는 멘트를 추출 하여, swt에게 전달 합니다."*
+
+#### 2. PM 정형화 요구사항 정의
+- **목적**: 형식적인 중계 문구를 탈피하고, FIDE 세계선수권 / Chess.com / Lichess 최고위 해설위원(IM/GM)의 전문 전술 용어와 AI 대전 특유의 **"Machine Move"**, **"Engine Precision"**, **"Tactical Refutation"** 멘트를 도입하여 대국의 박진감과 학습 가치를 극대화한다.
+- **핵심 해설 카테고리 (SWT Agent 설계)**:
+  1. **🤖 Machine Move (Stockfish NNUE 엔진 착수)**:
+     - 인간의 직관을 초월한 깊은 심도(20+ 수)의 계산 착수 및 전술적 응징 해설
+  2. **📖 Opening Theory (FIDE 오프닝 정석 & ECO 코드)**:
+     - 루이 로페즈(Ruy Lopez), 나이돌프 시실리안(Sicilian Najdorf), 프렌치 디펜스, 퀸스 갬빗 등 메이저 라인 해설
+  3. **💎 Brilliancy & Center Control (요충지 장악 & 주도권)**:
+     - 중앙 d4/d5/e4/e5 아웃포스트, 폰 구조 조율, 킹 안전도(King Safety) 평가
+  4. **🏰 Castling / ⚡ Check / ⚔️ Queen Trade & Captures**:
+     - 킹사이드/퀸사이드 캐슬링, 핀/포크 타격, 퀸 교환을 통한 테크니컬 엔드게임 국면 전환 해설
+
+#### 3. 에이전트별 세부 협업 요건
+- **SWT (Scenario Writer)**: 체스 전문 용어(Theory, Novelty, Engine Precision, King Safety, Initiative, Tarrasch Rule) 체계화 및 멘트 템플릿 제작
+- **TL / UX**: `commentaryEngine.ts` 고도화, AI 착수(`isAiMove`) 감지 및 `MACHINE`, `BRILLIANCY`, `THEORY`, `POSITIONAL` 전용 태그 배지 스타일링
+- **QM 인수 기준**:
+  - [AC-01] AI 착수 시 `🤖 Machine Move` 또는 엔진 심도 수읽기 해설이 피드에 노출되어야 한다.
+  - [AC-02] 주요 오프닝(e4, d4, c4, Nf3, c5 등) 착수 시 FIDE ECO 코드와 오프닝 명칭이 정확히 표출되어야 한다.
+  - [AC-03] 캐슬링, 체크, 기물 획득, 폰 승급 시 전문 IM/GM 톤앤매너로 해설이 실시간 갱신되어야 한다.
 

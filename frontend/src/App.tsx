@@ -67,9 +67,12 @@ export default function App() {
     if (u.lastMove) {
       const movedColor: PieceColor = u.turn === 'WHITE' ? 'BLACK' : 'WHITE';
       const currentSnap = gameStateRef.current;
+      const movedPlayer = movedColor === 'WHITE' ? currentSnap?.whitePlayer : currentSnap?.blackPlayer;
       const playerName = movedColor === 'WHITE'
         ? (currentSnap?.whitePlayer?.name || '백 플레이어')
         : (currentSnap?.blackPlayer?.name || '흑 플레이어');
+
+      const isAiMove = Boolean(movedPlayer?.isAi || playerName.includes('Stockfish') || (currentSnap?.gameMode === 'PVC' && movedPlayer?.id !== playerId));
 
       const moveNotation = u.lastMove.notation || `${u.lastMove.from}-${u.lastMove.to}`;
       const comm = generateCommentary({
@@ -82,6 +85,7 @@ export default function App() {
         promotionPiece: u.lastMove.promotion,
         isCheck: u.isCheck,
         capturedPiece: u.lastMove.captured ? String(u.lastMove.captured) : null,
+        isAiMove,
       });
 
       setCommentaryMessages((prev) => [...prev, comm]);

@@ -23,9 +23,10 @@ export const LiveCommentaryPanel: React.FC<LiveCommentaryPanelProps> = ({
 
   const getTagBadgeClass = (tag: CommentaryMessage['tag']) => {
     switch (tag) {
-      case 'OPENING': return 'badge-opening';
-      case 'BEST': return 'badge-best';
-      case 'GOOD': return 'badge-good';
+      case 'MACHINE': return 'badge-machine';
+      case 'BRILLIANCY': return 'badge-brilliancy';
+      case 'THEORY': return 'badge-theory';
+      case 'POSITIONAL': return 'badge-positional';
       case 'TACTICAL': return 'badge-tactical';
       case 'CASTLING': return 'badge-castling';
       case 'CHECK': return 'badge-check';
@@ -39,10 +40,11 @@ export const LiveCommentaryPanel: React.FC<LiveCommentaryPanelProps> = ({
 
   const getTagLabel = (tag: CommentaryMessage['tag']) => {
     switch (tag) {
-      case 'OPENING': return '📖 정석 오프닝';
-      case 'BEST': return '✨ 핵심 요충지';
-      case 'GOOD': return '🎯 좋은 전개';
-      case 'TACTICAL': return '♟️ 전술 전개';
+      case 'MACHINE': return '🤖 Machine Move';
+      case 'BRILLIANCY': return '💎 요충지 장악';
+      case 'THEORY': return '📖 오프닝 이론';
+      case 'POSITIONAL': return '♟️ 포지셔널 기동';
+      case 'TACTICAL': return '⚔️ 전술 전개';
       case 'CASTLING': return '🏰 캐슬링';
       case 'CHECK': return '⚡ 체크';
       case 'CAPTURE': return '⚔️ 기물 획득';
