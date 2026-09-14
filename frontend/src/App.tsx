@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { GameMode, GameSnapshot, PieceColor, PieceType, Square } from './types/game';
 import { GameEndedPayload, GameStateUpdatedPayload, MoveRejectedPayload } from './types/protocol';
 import { Lobby } from './components/Lobby/Lobby';
@@ -6,6 +6,7 @@ import { GameView } from './views/GameView';
 import { GameRulesModal } from './components/RulesModal/GameRulesModal';
 import { useChessWebSocket } from './hooks/useChessWebSocket';
 import { createGameApi, joinGameApi, requestHintApi, undoMoveApi } from './services/api';
+import { CommentaryMessage, generateCommentary } from './utils/commentaryEngine';
 import './App.css';
 
 const INITIAL_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
@@ -28,6 +29,10 @@ export default function App() {
   const [toast, setToast] = useState<string | null>(null);
   const [promoMove, setPromoMove] = useState<{ from: Square; to: Square } | null>(null);
   const [hintMove, setHintMove] = useState<{ from: Square; to: Square } | null>(null);
+  const [commentaryMessages, setCommentaryMessages] = useState<CommentaryMessage[]>([]);
+
+  const gameStateRef = useRef<GameSnapshot | null>(null);
+  gameStateRef.current = gameState;
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -45,16 +50,42 @@ export default function App() {
 
   const handleStateUpdated = useCallback((u: GameStateUpdatedPayload, ver: number) => {
     setHintMove(null);
-    setGameState((prev) => !prev ? null : {
-      ...prev,
-      gameVersion: ver,
-      turn: u.turn,
-      fen: u.fen,
-      lastMove: u.lastMove,
-      isCheck: u.isCheck,
-      whitePlayer: { ...prev.whitePlayer, remainingTimeMs: u.whiteRemainingTimeMs },
-      blackPlayer: prev.blackPlayer ? { ...prev.blackPlayer, remainingTimeMs: u.blackRemainingTimeMs } : null,
+    setGameState((prev) => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        gameVersion: ver,
+        turn: u.turn,
+        fen: u.fen,
+        lastMove: u.lastMove,
+        isCheck: u.isCheck,
+        whitePlayer: { ...prev.whitePlayer, remainingTimeMs: u.whiteRemainingTimeMs },
+        blackPlayer: prev.blackPlayer ? { ...prev.blackPlayer, remainingTimeMs: u.blackRemainingTimeMs } : null,
+      };
     });
+
+    if (u.lastMove) {
+      const movedColor: PieceColor = u.turn === 'WHITE' ? 'BLACK' : 'WHITE';
+      const currentSnap = gameStateRef.current;
+      const playerName = movedColor === 'WHITE'
+        ? (currentSnap?.whitePlayer?.name || '백 플레이어')
+        : (currentSnap?.blackPlayer?.name || '흑 플레이어');
+
+      const moveNotation = u.lastMove.notation || `${u.lastMove.from}-${u.lastMove.to}`;
+      const comm = generateCommentary({
+        moveNumber: u.moveNumber || 1,
+        color: movedColor,
+        playerName,
+        from: u.lastMove.from,
+        to: u.lastMove.to,
+        notation: moveNotation,
+        promotionPiece: u.lastMove.promotion,
+        isCheck: u.isCheck,
+        capturedPiece: u.lastMove.captured ? String(u.lastMove.captured) : null,
+      });
+
+      setCommentaryMessages((prev) => [...prev, comm]);
+    }
   }, []);
 
   const handleGameEnded = useCallback((e: GameEndedPayload) => {
@@ -66,6 +97,28 @@ export default function App() {
       endReason: e.reason,
       fen: e.finalFen,
     });
+
+    const now = new Date();
+    const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+    const resultTitle = e.reason === 'CHECKMATE'
+      ? `👑 외통수 체크메이트! ${e.result === 'WHITE_WON' ? '백' : '흑'} 승리`
+      : e.reason === 'RESIGNATION'
+      ? `🏳️ 기권으로 인한 ${e.result === 'WHITE_WON' ? '백' : '흑'} 승리`
+      : `🤝 무승부 (${e.reason})`;
+
+    const endComm: CommentaryMessage = {
+      id: `comm-end-${Date.now()}`,
+      moveNumber: 999,
+      color: e.result === 'WHITE_WON' ? 'WHITE' : 'BLACK',
+      playerName: '경기 종료',
+      notation: e.reason,
+      title: resultTitle,
+      body: e.message || `대국이 공식 종료되었습니다. 최종 결과: ${e.result} (${e.reason})`,
+      tag: e.reason === 'CHECKMATE' ? 'MATE' : 'ENDGAME',
+      timestamp: timeStr,
+    };
+    setCommentaryMessages((prev) => [...prev, endComm]);
+
     showToast(e.message || `대국 종료: ${e.result} (${e.reason})`);
   }, [showToast]);
 
@@ -112,6 +165,24 @@ export default function App() {
       if (res.success && res.snapshot) {
         setHintMove(null);
         setGameState(res.snapshot);
+        // 무르기 시 최근 2개의 중계 메시지 제거 및 안내 추가
+        setCommentaryMessages((prev) => {
+          const sliced = prev.slice(0, Math.max(0, prev.length - 2));
+          const now = new Date();
+          const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+          const undoNotice: CommentaryMessage = {
+            id: `comm-undo-${Date.now()}`,
+            moveNumber: 0,
+            color: 'WHITE',
+            playerName: '심판석',
+            notation: 'UNDO',
+            title: '↩️ 무르기(Undo) 적용',
+            body: `플레이어의 요청으로 직전 수가 되돌려졌습니다. (남은 무르기: ${res.remainingUndos}/${res.maxUndos}회)`,
+            tag: 'INFO',
+            timestamp: timeStr,
+          };
+          return [...sliced, undoNotice];
+        });
         showToast(`↩️ 무르기가 적용되었습니다. (남은 횟수: ${res.remainingUndos}/${res.maxUndos}회)`);
       }
     } catch (err: unknown) {
@@ -173,6 +244,24 @@ export default function App() {
         },
         isCheck: false,
       });
+
+      const now = new Date();
+      const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+      const whiteName = color === 'WHITE' ? opts.playerName : aiName;
+      const blackName = color === 'BLACK' ? opts.playerName : (opts.gameMode === 'PVC' ? aiName : '대기 중...');
+      setCommentaryMessages([
+        {
+          id: `comm-start-${Date.now()}`,
+          moveNumber: 0,
+          color: 'WHITE',
+          playerName: '중계석',
+          notation: 'START',
+          title: '🎙️ 실시간 체스 중계 개시',
+          body: `[${whiteName}] 님과 [${blackName}] 님의 명승부가 시작되었습니다! 백의 첫 수를 기다립니다.`,
+          tag: 'INFO',
+          timestamp: timeStr,
+        },
+      ]);
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : '생성 실패');
     } finally {
@@ -187,6 +276,21 @@ export default function App() {
       await joinGameApi(id, playerId, playerName);
       setMyColor('BLACK');
       setGameId(id);
+      const now = new Date();
+      const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+      setCommentaryMessages([
+        {
+          id: `comm-join-${Date.now()}`,
+          moveNumber: 0,
+          color: 'BLACK',
+          playerName: '중계석',
+          notation: 'JOIN',
+          title: '🎙️ 2인 대전 중계 연결',
+          body: `대국실에 성공적으로 입장하셨습니다. 백의 첫 수로 경기가 진행됩니다.`,
+          tag: 'INFO',
+          timestamp: timeStr,
+        },
+      ]);
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : '참가 실패');
     } finally {
@@ -237,6 +341,7 @@ export default function App() {
             myColor={myColor}
             promoMove={promoMove}
             hintMove={hintMove}
+            commentaryMessages={commentaryMessages}
             onRequestHint={handleRequestHint}
             onRequestUndo={handleUndo}
             onMove={(from, to) => {
@@ -255,7 +360,12 @@ export default function App() {
             onResign={sendResign}
             onOfferDraw={sendOfferDraw}
             onSync={sendSyncState}
-            onLeave={() => { setGameId(null); setGameState(null); setHintMove(null); }}
+            onLeave={() => {
+              setGameId(null);
+              setGameState(null);
+              setHintMove(null);
+              setCommentaryMessages([]);
+            }}
           />
         )}
       </main>
