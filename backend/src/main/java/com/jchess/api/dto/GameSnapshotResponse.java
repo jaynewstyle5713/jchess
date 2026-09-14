@@ -12,6 +12,9 @@ public record GameSnapshotResponse(
         String gameId,
         GameMode gameMode,
         Integer aiLevel,
+        int remainingHints,
+        int maxUndos,
+        int remainingUndos,
         GameStatus gameStatus,
         Long gameVersion,
         PieceColor turn,
@@ -24,5 +27,27 @@ public record GameSnapshotResponse(
         GameEndReason endReason,
         Instant createdAt,
         Instant updatedAt
-) {}
+) {
+    public GameSnapshotResponse(
+            String gameId,
+            GameMode gameMode,
+            Integer aiLevel,
+            GameStatus gameStatus,
+            Long gameVersion,
+            PieceColor turn,
+            String fen,
+            PlayerInfoDto whitePlayer,
+            PlayerInfoDto blackPlayer,
+            MoveDto lastMove,
+            boolean isCheck,
+            GameResult result,
+            GameEndReason endReason,
+            Instant createdAt,
+            Instant updatedAt
+    ) {
+        this(gameId, gameMode, aiLevel, 3, 3, 3, gameStatus, gameVersion, turn, fen,
+                whitePlayer, blackPlayer, lastMove, isCheck, result, endReason, createdAt, updatedAt);
+    }
+}
+
 

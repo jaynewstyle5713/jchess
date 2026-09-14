@@ -102,6 +102,36 @@ public class GameController {
         log.info("[REST_API] Game resigned: gameId={}, result={}, reason={}", gameId, response.result(), response.endReason());
         return ResponseEntity.ok(response);
     }
+
+    @PostMapping("/{gameId}/hint")
+    public ResponseEntity<HintResponse> requestHint(
+            @PathVariable String gameId,
+            @RequestHeader("X-Player-Id") String playerId
+    ) {
+        log.info("[REST_API] POST /api/v1/games/{}/hint - playerId: {}", gameId, playerId);
+        HintResponse response = gameService.requestHint(gameId, playerId);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/{gameId}/agree-draw")
+    public ResponseEntity<GameSnapshotResponse> agreeDraw(
+            @PathVariable String gameId,
+            @RequestHeader("X-Player-Id") String playerId
+    ) {
+        log.info("[REST_API] POST /api/v1/games/{}/agree-draw - playerId: {}", gameId, playerId);
+        GameSnapshotResponse response = gameService.agreeDraw(gameId, playerId);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/{gameId}/undo")
+    public ResponseEntity<UndoResponse> undoMove(
+            @PathVariable String gameId,
+            @RequestHeader("X-Player-Id") String playerId
+    ) {
+        log.info("[REST_API] POST /api/v1/games/{}/undo - playerId: {}", gameId, playerId);
+        UndoResponse response = gameService.undoMove(gameId, playerId);
+        return ResponseEntity.ok(response);
+    }
 }
 
 

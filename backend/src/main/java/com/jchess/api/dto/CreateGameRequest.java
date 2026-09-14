@@ -13,7 +13,11 @@ public record CreateGameRequest(
             gameMode = GameMode.PVP;
         }
         if (aiLevel == null || aiLevel <= 0) {
-            aiLevel = 2000;
+            aiLevel = 600;
+        } else if (aiLevel < 400) {
+            aiLevel = 400;
+        } else if (aiLevel > 2500) {
+            aiLevel = 2500;
         }
         if (timeControl == null) {
             timeControl = TimeControlDto.standard();
@@ -24,7 +28,7 @@ public record CreateGameRequest(
     }
 
     public CreateGameRequest(TimeControlDto timeControl, String preferredColor) {
-        this(GameMode.PVP, 2000, timeControl, preferredColor);
+        this(GameMode.PVP, 600, timeControl, preferredColor);
     }
 }
 

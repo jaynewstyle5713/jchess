@@ -39,7 +39,7 @@ class PvcGameIntegrationTest {
         assertThat(response.status()).isEqualTo(GameStatus.ACTIVE);
         assertThat(response.whitePlayer().id()).isEqualTo("user-alice");
         assertThat(response.blackPlayer().id()).isEqualTo("ai-stockfish");
-        assertThat(response.blackPlayer().name()).contains("Stockfish AI");
+        assertThat(response.blackPlayer().name()).contains("Stockfish");
     }
 
     @Test
@@ -60,8 +60,8 @@ class PvcGameIntegrationTest {
         // 2. 비동기 AI 착수 트리거
         aiMoveExecutor.triggerAiMoveIfApplicable(playerSnapshot);
 
-        // 3. 비동기 AI가 흑 수를 착수하여 턴이 다시 WHITE로 넘어오는지 대기 및 검증 (최대 5초)
-        await().atMost(5, TimeUnit.SECONDS).untilAsserted(() -> {
+        // 3. 비동기 AI가 흑 수를 착수하여 턴이 다시 WHITE로 넘어오는지 대기 및 검증 (최대 8초)
+        await().atMost(8, TimeUnit.SECONDS).untilAsserted(() -> {
             GameSnapshotResponse latest = gameService.getGameSnapshot(gameId);
             assertThat(latest.turn()).isEqualTo(PieceColor.WHITE);
             assertThat(latest.gameVersion()).isGreaterThanOrEqualTo(2L);

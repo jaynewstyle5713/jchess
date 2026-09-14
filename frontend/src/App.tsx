@@ -5,16 +5,17 @@ import { Lobby } from './components/Lobby/Lobby';
 import { GameView } from './views/GameView';
 import { GameRulesModal } from './components/RulesModal/GameRulesModal';
 import { useChessWebSocket } from './hooks/useChessWebSocket';
-import { createGameApi, joinGameApi } from './services/api';
+import { createGameApi, joinGameApi, requestHintApi, undoMoveApi } from './services/api';
 import './App.css';
 
 const INITIAL_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
 function getAiDisplayName(elo: number): string {
-  if (elo <= 700) return `Stockfish AI (하수 · ${elo})`;
-  if (elo <= 1200) return `Stockfish AI (중수 · ${elo})`;
-  if (elo <= 1700) return `Stockfish AI (고급 · ${elo})`;
-  return `Stockfish AI (초고수 · ${elo})`;
+  if (elo <= 750) return `Stockfish 8 (입문 · 600)`;
+  if (elo <= 1050) return `Stockfish 11 (초급 · 900)`;
+  if (elo <= 1450) return `Stockfish 14 (중급 · 1300)`;
+  if (elo <= 1850) return `Stockfish 17 (고급 · 1700)`;
+  return `Stockfish 19 (마스터 · 2000+)`;
 }
 
 export default function App() {
@@ -26,6 +27,7 @@ export default function App() {
   const [isRulesOpen, setIsRulesOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [promoMove, setPromoMove] = useState<{ from: Square; to: Square } | null>(null);
+  const [hintMove, setHintMove] = useState<{ from: Square; to: Square } | null>(null);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -42,6 +44,7 @@ export default function App() {
   }, [playerId]);
 
   const handleStateUpdated = useCallback((u: GameStateUpdatedPayload, ver: number) => {
+    setHintMove(null);
     setGameState((prev) => !prev ? null : {
       ...prev,
       gameVersion: ver,
@@ -55,6 +58,7 @@ export default function App() {
   }, []);
 
   const handleGameEnded = useCallback((e: GameEndedPayload) => {
+    setHintMove(null);
     setGameState((prev) => !prev ? null : {
       ...prev,
       gameStatus: e.reason === 'RESIGNATION' ? 'RESIGNED' : e.reason === 'CHECKMATE' ? 'CHECKMATE' : 'DRAW',
@@ -62,11 +66,15 @@ export default function App() {
       endReason: e.reason,
       fen: e.finalFen,
     });
-    showToast(`대국 종료: ${e.result} (${e.reason})`);
+    showToast(e.message || `대국 종료: ${e.result} (${e.reason})`);
   }, [showToast]);
 
   const handleMoveRejected = useCallback((r: MoveRejectedPayload) => {
     showToast(`착수 거부: ${r.message}`);
+  }, [showToast]);
+
+  const handleDrawRejected = useCallback((d: { reason: string }) => {
+    showToast(d.reason || 'AI가 무승부 제안을 거절했습니다.');
   }, [showToast]);
 
   const { connectionStatus, sendMove, sendResign, sendOfferDraw, sendSyncState } = useChessWebSocket({
@@ -76,8 +84,40 @@ export default function App() {
     onStateUpdated: handleStateUpdated,
     onMoveRejected: handleMoveRejected,
     onGameEnded: handleGameEnded,
+    onDrawRejected: handleDrawRejected,
     onError: showToast,
   });
+
+  const handleRequestHint = async () => {
+    if (!gameId) return;
+    try {
+      const res = await requestHintApi(gameId, playerId);
+      if (res.from && res.to) {
+        setHintMove({ from: res.from as Square, to: res.to as Square });
+        setGameState((prev) => !prev ? null : {
+          ...prev,
+          remainingHints: res.remainingHints,
+        });
+        showToast(`💡 AI 추천TIP: ${res.from} ➔ ${res.to} (남은 힌트: ${res.remainingHints}회)`);
+      }
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : '추천TIP 조회 실패');
+    }
+  };
+
+  const handleUndo = async () => {
+    if (!gameId) return;
+    try {
+      const res = await undoMoveApi(gameId, playerId);
+      if (res.success && res.snapshot) {
+        setHintMove(null);
+        setGameState(res.snapshot);
+        showToast(`↩️ 무르기가 적용되었습니다. (남은 횟수: ${res.remainingUndos}/${res.maxUndos}회)`);
+      }
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : '무르기 실패');
+    }
+  };
 
   const handleCreate = async (opts: {
     gameMode: GameMode;
@@ -88,6 +128,7 @@ export default function App() {
     playerName: string;
   }) => {
     setIsLoading(true);
+    setHintMove(null);
     try {
       const data = await createGameApi({
         ...opts,
@@ -96,12 +137,22 @@ export default function App() {
       });
       const color = opts.preferredColor === 'RANDOM' ? (Math.random() > 0.5 ? 'WHITE' : 'BLACK') : opts.preferredColor;
       const aiName = getAiDisplayName(opts.aiLevel);
+      let maxUndos = 3;
+      if (opts.gameMode === 'PVC') {
+        if (opts.aiLevel <= 750) maxUndos = 10;
+        else if (opts.aiLevel <= 1050) maxUndos = 8;
+        else if (opts.aiLevel <= 1450) maxUndos = 5;
+        else maxUndos = 3;
+      }
       setMyColor(color as PieceColor);
       setGameId(data.gameId);
       setGameState({
         gameId: data.gameId,
         gameMode: opts.gameMode,
         aiLevel: opts.aiLevel,
+        remainingHints: 3,
+        maxUndos,
+        remainingUndos: maxUndos,
         gameStatus: opts.gameMode === 'PVC' ? 'ACTIVE' : 'WAITING_FOR_OPPONENT',
         gameVersion: 0,
         turn: 'WHITE',
@@ -131,6 +182,7 @@ export default function App() {
 
   const handleJoin = async (id: string, playerName: string) => {
     setIsLoading(true);
+    setHintMove(null);
     try {
       await joinGameApi(id, playerId, playerName);
       setMyColor('BLACK');
@@ -184,10 +236,17 @@ export default function App() {
             gameState={gameState}
             myColor={myColor}
             promoMove={promoMove}
-            onMove={(from, to) => sendMove(from, to, null)}
+            hintMove={hintMove}
+            onRequestHint={handleRequestHint}
+            onRequestUndo={handleUndo}
+            onMove={(from, to) => {
+              setHintMove(null);
+              sendMove(from, to, null);
+            }}
             onRequestPromotion={(from, to) => setPromoMove({ from, to })}
             onSelectPromotion={(p: PieceType) => {
               if (promoMove) {
+                setHintMove(null);
                 sendMove(promoMove.from, promoMove.to, p);
                 setPromoMove(null);
               }
@@ -196,7 +255,7 @@ export default function App() {
             onResign={sendResign}
             onOfferDraw={sendOfferDraw}
             onSync={sendSyncState}
-            onLeave={() => { setGameId(null); setGameState(null); }}
+            onLeave={() => { setGameId(null); setGameState(null); setHintMove(null); }}
           />
         )}
       </main>

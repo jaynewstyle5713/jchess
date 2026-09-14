@@ -185,3 +185,64 @@ export function generateBasicLegalMoves(
 
   return moves;
 }
+
+export interface MaterialEvaluation {
+  whiteScore: number;
+  blackScore: number;
+  scoreDiff: number; // whiteScore - blackScore
+  advantage: 'WHITE' | 'BLACK' | 'EQUAL';
+  advantageText: string;
+}
+
+export function calculateMaterial(fen: string, myColor: PieceColor = 'WHITE'): MaterialEvaluation {
+  const board = parseFen(fen);
+  let whiteScore = 0;
+  let blackScore = 0;
+
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const piece = board[r][c];
+      if (!piece) continue;
+      let val = 0;
+      switch (piece.type) {
+        case 'QUEEN': val = 9; break;
+        case 'ROOK': val = 5; break;
+        case 'BISHOP': val = 3; break;
+        case 'KNIGHT': val = 3; break;
+        case 'PAWN': val = 1; break;
+        case 'KING': val = 0; break;
+      }
+      if (piece.color === 'WHITE') whiteScore += val;
+      else blackScore += val;
+    }
+  }
+
+  const scoreDiff = whiteScore - blackScore;
+  const myScore = myColor === 'WHITE' ? whiteScore : blackScore;
+  const opponentScore = myColor === 'WHITE' ? blackScore : whiteScore;
+  const diffFromMe = myScore - opponentScore;
+
+  let advantage: 'WHITE' | 'BLACK' | 'EQUAL' = 'EQUAL';
+  let advantageText = '⚪ 팽팽한 호각 (동등)';
+
+  if (diffFromMe >= 2) {
+    advantage = myColor;
+    advantageText = `🟢 내가 우세 (+${diffFromMe}점 유리)`;
+  } else if (diffFromMe <= -2) {
+    advantage = myColor === 'WHITE' ? 'BLACK' : 'WHITE';
+    advantageText = `🔴 상대 우세 (+${Math.abs(diffFromMe)}점 유리)`;
+  } else if (diffFromMe === 1) {
+    advantageText = '🟢 내가 근소 우세 (+1점)';
+  } else if (diffFromMe === -1) {
+    advantageText = '🔴 상대 근소 우세 (+1점)';
+  }
+
+  return {
+    whiteScore,
+    blackScore,
+    scoreDiff,
+    advantage,
+    advantageText,
+  };
+}
+

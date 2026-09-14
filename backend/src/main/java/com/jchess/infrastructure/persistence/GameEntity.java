@@ -30,7 +30,7 @@ public class GameEntity {
     private GameMode gameMode = GameMode.PVP;
 
     @Column
-    private Integer aiLevel = 2000;
+    private Integer aiLevel = 600;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)
@@ -75,6 +75,15 @@ public class GameEntity {
     private Instant lastMoveAt;
 
     @Column(nullable = false)
+    private int remainingHints = 3;
+
+    @Column(nullable = false)
+    private int maxUndos = 3;
+
+    @Column(nullable = false)
+    private int remainingUndos = 3;
+
+    @Column(nullable = false)
     private Instant createdAt;
 
     @Column(nullable = false)
@@ -96,6 +105,15 @@ public class GameEntity {
 
     public Integer getAiLevel() { return aiLevel; }
     public void setAiLevel(Integer aiLevel) { this.aiLevel = aiLevel; }
+
+    public int getRemainingHints() { return remainingHints; }
+    public void setRemainingHints(int remainingHints) { this.remainingHints = remainingHints; }
+
+    public int getMaxUndos() { return maxUndos; }
+    public void setMaxUndos(int maxUndos) { this.maxUndos = maxUndos; }
+
+    public int getRemainingUndos() { return remainingUndos; }
+    public void setRemainingUndos(int remainingUndos) { this.remainingUndos = remainingUndos; }
 
     public PieceColor getCurrentTurn() { return currentTurn; }
     public void setCurrentTurn(PieceColor currentTurn) { this.currentTurn = currentTurn; }

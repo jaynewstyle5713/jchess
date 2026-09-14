@@ -1,5 +1,6 @@
 package com.jchess.service;
 
+import com.jchess.ai.HybridChessAiService;
 import com.jchess.api.dto.*;
 import com.jchess.domain.engine.FenParser;
 import com.jchess.domain.exception.*;
@@ -16,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -26,11 +28,13 @@ public class GameService {
 
     private final GameRepository gameRepository;
     private final GameMoveRepository gameMoveRepository;
+    private final HybridChessAiService aiService;
     private final Clock clock;
 
-    public GameService(GameRepository gameRepository, GameMoveRepository gameMoveRepository, Clock clock) {
+    public GameService(GameRepository gameRepository, GameMoveRepository gameMoveRepository, HybridChessAiService aiService, Clock clock) {
         this.gameRepository = gameRepository;
         this.gameMoveRepository = gameMoveRepository;
+        this.aiService = aiService;
         this.clock = clock;
     }
 
@@ -42,7 +46,7 @@ public class GameService {
         TimeControlDto tc = request.timeControl();
         long initialTimeMs = tc.baseMinutes() * 60 * 1000L;
         GameMode mode = request.gameMode() != null ? request.gameMode() : GameMode.PVP;
-        int aiLevel = request.aiLevel() != null ? request.aiLevel() : 2000;
+        int aiLevel = request.aiLevel() != null ? request.aiLevel() : 600;
 
         GameEntity entity = new GameEntity();
         entity.setId(gameId);
@@ -54,6 +58,18 @@ public class GameService {
         entity.setIncrementSeconds(tc.incrementSeconds());
         entity.setWhiteRemainingTimeMs(initialTimeMs);
         entity.setBlackRemainingTimeMs(initialTimeMs);
+        entity.setRemainingHints(3);
+        int maxUndos;
+        if (mode == GameMode.PVC) {
+            if (aiLevel <= 750) maxUndos = 10;
+            else if (aiLevel <= 1050) maxUndos = 8;
+            else if (aiLevel <= 1450) maxUndos = 5;
+            else maxUndos = 3;
+        } else {
+            maxUndos = 3;
+        }
+        entity.setMaxUndos(maxUndos);
+        entity.setRemainingUndos(maxUndos);
         entity.setCreatedAt(now);
         entity.setUpdatedAt(now);
 
@@ -279,6 +295,197 @@ public class GameService {
         return toSnapshotResponse(saved);
     }
 
+    @Transactional
+    public GameSnapshotResponse agreeDraw(String gameId, String playerId) {
+        GameEntity entity = gameRepository.findById(gameId)
+                .orElseThrow(() -> new GameNotFoundException(gameId));
+
+        if (isEndedStatus(entity.getStatus())) {
+            throw new GameAlreadyFinishedException("이미 종료된 대국입니다.", gameId, entity.getVersion());
+        }
+
+        boolean isWhite = playerId.equals(entity.getWhitePlayerId());
+        boolean isBlack = playerId.equals(entity.getBlackPlayerId());
+        if (!isWhite && !isBlack) {
+            throw new UnauthorizedPlayerException("해당 대국의 참가자가 아닙니다.", gameId);
+        }
+
+        entity.setStatus(GameStatus.DRAW);
+        entity.setResult(GameResult.DRAW);
+        entity.setEndReason(GameEndReason.AGREED_DRAW);
+        entity.setUpdatedAt(clock.instant());
+
+        GameEntity saved = gameRepository.save(entity);
+        log.info("[GAME_SERVICE] Game {} ended with AGREED_DRAW", gameId);
+        return toSnapshotResponse(saved);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean evaluateAiDrawOffer(String gameId, String playerId) {
+        GameEntity entity = gameRepository.findById(gameId)
+                .orElseThrow(() -> new GameNotFoundException(gameId));
+
+        if (entity.getGameMode() != GameMode.PVC || isEndedStatus(entity.getStatus())) {
+            return false;
+        }
+
+        boolean isPlayerWhite = playerId.equals(entity.getWhitePlayerId());
+        PieceColor aiColor = isPlayerWhite ? PieceColor.BLACK : PieceColor.WHITE;
+        PieceColor playerColor = isPlayerWhite ? PieceColor.WHITE : PieceColor.BLACK;
+
+        GameState state = GameState.fromFen(entity.getCurrentFen());
+        int aiScore = calculateMaterialScore(state.board(), aiColor);
+        int playerScore = calculateMaterialScore(state.board(), playerColor);
+        int scoreDiff = aiScore - playerScore;
+
+        int aiElo = entity.getAiLevel() != null ? entity.getAiLevel() : 600;
+
+        log.info("[GAME_SERVICE] Evaluating AI Draw offer for game {}: aiScore={}, playerScore={}, scoreDiff={}, aiElo={}",
+                gameId, aiScore, playerScore, scoreDiff, aiElo);
+
+        if (scoreDiff <= -2) {
+            return true;
+        }
+        if (scoreDiff >= 2) {
+            return false;
+        }
+        return aiElo <= 1400;
+    }
+
+    @Transactional
+    public HintResponse requestHint(String gameId, String playerId) {
+        GameEntity entity = gameRepository.findById(gameId)
+                .orElseThrow(() -> new GameNotFoundException(gameId));
+
+        if (isEndedStatus(entity.getStatus())) {
+            throw new GameAlreadyFinishedException("이미 종료된 대국입니다.", gameId, entity.getVersion());
+        }
+
+        boolean isWhite = playerId.equals(entity.getWhitePlayerId());
+        boolean isBlack = playerId.equals(entity.getBlackPlayerId());
+        if (!isWhite && !isBlack) {
+            throw new UnauthorizedPlayerException("해당 대국의 참가자가 아닙니다.", gameId);
+        }
+
+        PieceColor playerColor = isWhite ? PieceColor.WHITE : PieceColor.BLACK;
+        if (entity.getCurrentTurn() != playerColor) {
+            throw new IllegalMoveException("본인의 착수 차례가 아닙니다.", gameId, entity.getVersion());
+        }
+
+        if (entity.getRemainingHints() <= 0) {
+            throw new IllegalArgumentException("대국당 3회의 추천TIP 찬스를 모두 사용하셨습니다.");
+        }
+
+        entity.setRemainingHints(entity.getRemainingHints() - 1);
+        entity.setUpdatedAt(clock.instant());
+        gameRepository.save(entity);
+
+        GameState state = GameState.fromFen(entity.getCurrentFen());
+        Move bestMove = aiService.calculateBestMove(state, 2000).join();
+
+        if (bestMove == null) {
+            throw new IllegalStateException("추천 가능한 최선의 수를 계산하지 못했습니다.");
+        }
+
+        log.info("[GAME_SERVICE] Hint requested for game {}: move {} -> {}, remainingHints={}",
+                gameId, bestMove.from().toAlgebraic(), bestMove.to().toAlgebraic(), entity.getRemainingHints());
+
+        return new HintResponse(
+                bestMove.from().toAlgebraic(),
+                bestMove.to().toAlgebraic(),
+                bestMove.promotion() != null ? bestMove.promotion().name() : null,
+                entity.getRemainingHints(),
+                "AI 추천 최선의 수입니다."
+        );
+    }
+
+    private int calculateMaterialScore(Board board, PieceColor color) {
+        int score = 0;
+        for (int rank = 0; rank < 8; rank++) {
+            for (int file = 0; file < 8; file++) {
+                Piece piece = board.getPiece(Position.of(file, rank));
+                if (piece != null && piece.color() == color) {
+                    score += switch (piece.type()) {
+                        case QUEEN -> 9;
+                        case ROOK -> 5;
+                        case BISHOP, KNIGHT -> 3;
+                        case PAWN -> 1;
+                        case KING -> 0;
+                    };
+                }
+            }
+        }
+        return score;
+    }
+
+    @Transactional
+    public UndoResponse undoMove(String gameId, String playerId) {
+        GameEntity entity = gameRepository.findById(gameId)
+                .orElseThrow(() -> new GameNotFoundException(gameId));
+
+        if (isEndedStatus(entity.getStatus())) {
+            throw new GameAlreadyFinishedException("이미 종료된 대국입니다.", gameId, entity.getVersion());
+        }
+
+        boolean isWhite = playerId.equals(entity.getWhitePlayerId());
+        boolean isBlack = playerId.equals(entity.getBlackPlayerId());
+        if (!isWhite && !isBlack) {
+            throw new UnauthorizedPlayerException("해당 대국의 참가자가 아닙니다.", gameId);
+        }
+
+        if (entity.getRemainingUndos() <= 0) {
+            throw new IllegalArgumentException("무르기 가능 횟수(" + entity.getMaxUndos() + "회)를 모두 소진하셨습니다.");
+        }
+
+        List<GameMoveEntity> moves = gameMoveRepository.findByGameIdOrderByIdAsc(gameId);
+        if (moves.isEmpty()) {
+            throw new IllegalStateException("되돌릴 수 있는 이전 착수 기록이 없습니다.");
+        }
+
+        int movesToRollback = 1;
+        if (entity.getGameMode() == GameMode.PVC) {
+            // PVC 모드: 플레이어 착수 차례로 되돌리기 위해 2수(상대 AI 수 + 내 수) 롤백 (단, 전체 수가 1수면 1수만 롤백)
+            movesToRollback = Math.min(2, moves.size());
+        }
+
+        List<GameMoveEntity> movesToDelete = moves.subList(moves.size() - movesToRollback, moves.size());
+        gameMoveRepository.deleteAll(movesToDelete);
+
+        List<GameMoveEntity> remainingMoves = moves.subList(0, moves.size() - movesToRollback);
+        String restoredFen;
+        PieceColor restoredTurn;
+
+        if (remainingMoves.isEmpty()) {
+            restoredFen = FenParser.INITIAL_FEN;
+            restoredTurn = PieceColor.WHITE;
+        } else {
+            GameMoveEntity lastRemaining = remainingMoves.get(remainingMoves.size() - 1);
+            restoredFen = lastRemaining.getFenAfterMove();
+            GameState state = GameState.fromFen(restoredFen);
+            restoredTurn = state.activeColor();
+        }
+
+        entity.setCurrentFen(restoredFen);
+        entity.setCurrentTurn(restoredTurn);
+        entity.setStatus(GameStatus.ACTIVE);
+        entity.setResult(null);
+        entity.setEndReason(null);
+        entity.setRemainingUndos(entity.getRemainingUndos() - 1);
+        entity.setLastMoveAt(clock.instant());
+        entity.setUpdatedAt(clock.instant());
+
+        GameEntity saved = gameRepository.save(entity);
+        log.info("[GAME_SERVICE] Undo executed for game {}: rolled back {} moves, remainingUndos={}/{}",
+                gameId, movesToRollback, saved.getRemainingUndos(), saved.getMaxUndos());
+
+        return new UndoResponse(
+                true,
+                saved.getRemainingUndos(),
+                saved.getMaxUndos(),
+                "무르기가 성공적으로 적용되었습니다.",
+                toSnapshotResponse(saved)
+        );
+    }
 
     private void checkAndApplyTimeoutIfNecessary(GameEntity entity) {
         if ((entity.getStatus() == GameStatus.ACTIVE || entity.getStatus() == GameStatus.CHECK) && entity.getLastMoveAt() != null) {
@@ -307,14 +514,16 @@ public class GameService {
     }
 
     private String getAiDisplayName(int aiLevel) {
-        if (aiLevel <= 700) {
-            return "Stockfish AI (하수 · " + aiLevel + ")";
-        } else if (aiLevel <= 1200) {
-            return "Stockfish AI (중수 · " + aiLevel + ")";
-        } else if (aiLevel <= 1700) {
-            return "Stockfish AI (고급 · " + aiLevel + ")";
+        if (aiLevel <= 750) {
+            return "Stockfish 8 (입문 · ELO 600)";
+        } else if (aiLevel <= 1050) {
+            return "Stockfish 11 (초급 · ELO 900)";
+        } else if (aiLevel <= 1450) {
+            return "Stockfish 14 (중급 · ELO 1300)";
+        } else if (aiLevel <= 1850) {
+            return "Stockfish 17 (고급 · ELO 1700)";
         } else {
-            return "Stockfish AI (초고수 · " + aiLevel + ")";
+            return "Stockfish 19 (마스터 · ELO 2000+)";
         }
     }
 
@@ -347,6 +556,9 @@ public class GameService {
                 entity.getId(),
                 entity.getGameMode(),
                 entity.getAiLevel(),
+                entity.getRemainingHints(),
+                entity.getMaxUndos(),
+                entity.getRemainingUndos(),
                 entity.getStatus(),
                 entity.getVersion(),
                 entity.getCurrentTurn(),

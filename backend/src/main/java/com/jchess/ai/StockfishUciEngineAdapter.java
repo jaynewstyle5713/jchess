@@ -10,7 +10,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.time.Duration;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
@@ -28,10 +31,33 @@ public class StockfishUciEngineAdapter implements ChessAiEngine {
         this.stockfishPath = stockfishPath;
     }
 
-    @Override
-    public boolean isAvailable() {
+    private String resolveExecutablePath() {
+        if (!"stockfish".equalsIgnoreCase(stockfishPath) && !"".equals(stockfishPath.trim())) {
+            return stockfishPath;
+        }
+
+        if (checkExecutable("stockfish")) {
+            return "stockfish";
+        }
+
+        List<String> candidates = List.of(
+                "C:\\tools\\stockfish\\stockfish.exe",
+                "C:\\Program Files\\Stockfish\\stockfish.exe",
+                System.getProperty("user.home") + "\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Stockfish.Stockfish_Microsoft.Winget.Source_8wekyb3d8bbwe\\stockfish\\stockfish-windows-x86-64-universal.exe"
+        );
+
+        for (String candidate : candidates) {
+            if (Files.exists(Paths.get(candidate)) && checkExecutable(candidate)) {
+                return candidate;
+            }
+        }
+
+        return stockfishPath;
+    }
+
+    private boolean checkExecutable(String path) {
         try {
-            Process process = new ProcessBuilder(stockfishPath).start();
+            Process process = new ProcessBuilder(path).start();
             try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(process.getOutputStream()));
                  BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
                 writer.write("uci\n");
@@ -49,24 +75,73 @@ public class StockfishUciEngineAdapter implements ChessAiEngine {
             } finally {
                 process.destroyForcibly();
             }
-        } catch (Exception e) {
-            log.debug("Stockfish binary not available at '{}': {}", stockfishPath, e.getMessage());
+        } catch (Exception ignored) {
         }
         return false;
     }
 
     @Override
+    public boolean isAvailable() {
+        String resolved = resolveExecutablePath();
+        boolean available = checkExecutable(resolved);
+        if (available) {
+            log.info("[STOCKFISH_ADAPTER] Stockfish 19 UCI engine verified at '{}'", resolved);
+        }
+        return available;
+    }
+
+    @Override
     public CompletableFuture<Move> findBestMove(GameState gameState, int targetElo, Duration timeout) {
         return CompletableFuture.supplyAsync(() -> {
+            String executable = resolveExecutablePath();
             Process process = null;
             try {
-                process = new ProcessBuilder(stockfishPath).start();
+                process = new ProcessBuilder(executable).start();
                 BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(process.getOutputStream()));
                 BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
 
+                // Stockfish 19 Engine Level & Rating Fine-Tuning
+                int skillLevel;
+                int uciElo;
+                boolean limitStrength;
+                long moveTimeMs;
+
+                if (targetElo <= 750) { // Stockfish 8 (입문 ELO 600)
+                    skillLevel = 2;
+                    limitStrength = true;
+                    uciElo = 1320;
+                    moveTimeMs = 100;
+                } else if (targetElo <= 1050) { // Stockfish 11 (초급 ELO 900)
+                    skillLevel = 6;
+                    limitStrength = true;
+                    uciElo = 1350;
+                    moveTimeMs = 150;
+                } else if (targetElo <= 1450) { // Stockfish 14 (중급 ELO 1300)
+                    skillLevel = 11;
+                    limitStrength = true;
+                    uciElo = 1500;
+                    moveTimeMs = 250;
+                } else if (targetElo <= 1850) { // Stockfish 17 (고급 ELO 1700 - 공인 1700 대회 입상자 수준)
+                    skillLevel = 18;
+                    limitStrength = true;
+                    uciElo = 2150;
+                    moveTimeMs = 600;
+                } else { // Stockfish 19 (초고수 ELO 2000+ - NNUE Master 풀파워)
+                    skillLevel = 20;
+                    limitStrength = false;
+                    uciElo = 3190;
+                    moveTimeMs = 800;
+                }
+
+                log.info("[STOCKFISH_ENGINE] Move calculation for target ELO {}: skillLevel={}, limitStrength={}, uciElo={}, movetime={}ms",
+                        targetElo, skillLevel, limitStrength, uciElo, moveTimeMs);
+
                 writer.write("uci\n");
-                writer.write("setoption name UCI_LimitStrength value true\n");
-                writer.write("setoption name UCI_Elo value " + Math.max(1350, Math.min(2850, targetElo)) + "\n");
+                writer.write("setoption name Skill Level value " + skillLevel + "\n");
+                writer.write("setoption name UCI_LimitStrength value " + limitStrength + "\n");
+                if (limitStrength) {
+                    writer.write("setoption name UCI_Elo value " + uciElo + "\n");
+                }
                 writer.write("isready\n");
                 writer.flush();
 
@@ -77,7 +152,6 @@ public class StockfishUciEngineAdapter implements ChessAiEngine {
 
                 String fen = gameState.toFen();
                 writer.write("position fen " + fen + "\n");
-                long moveTimeMs = Math.min(2000, Math.max(300, timeout.toMillis()));
                 writer.write("go movetime " + moveTimeMs + "\n");
                 writer.flush();
 
@@ -103,10 +177,13 @@ public class StockfishUciEngineAdapter implements ChessAiEngine {
                 process.waitFor(500, TimeUnit.MILLISECONDS);
 
                 if (bestMove != null) {
+                    log.info("[STOCKFISH_19] Best move found: {} -> {} (promotion={})",
+                            bestMove.from().toAlgebraic(), bestMove.to().toAlgebraic(), bestMove.promotion());
                     return bestMove;
                 }
                 throw new IllegalStateException("Stockfish did not return bestmove");
             } catch (Exception e) {
+                log.error("[STOCKFISH_19] Execution error: {}", e.getMessage(), e);
                 throw new RuntimeException("Stockfish execution failed: " + e.getMessage(), e);
             } finally {
                 if (process != null) {

@@ -9,6 +9,7 @@ interface ChessboardProps {
   turn: PieceColor;
   isCheck?: boolean;
   lastMove?: Move | null;
+  hintMove?: { from: Square; to: Square } | null;
   interactive?: boolean;
   myColor?: PieceColor | null;
   onMove: (from: Square, to: Square) => void;
@@ -24,6 +25,7 @@ export const Chessboard: React.FC<ChessboardProps> = ({
   turn,
   isCheck = false,
   lastMove = null,
+  hintMove = null,
   interactive = true,
   myColor = null,
   onMove,
@@ -95,11 +97,15 @@ export const Chessboard: React.FC<ChessboardProps> = ({
               const isSelected = selectedSquare === square;
               const isLast = lastMove?.from === square || lastMove?.to === square;
               const isKingInCheck = checkKingSquare === square;
+              const isHintFrom = hintMove?.from === square;
+              const isHintTo = hintMove?.to === square;
 
               let cls = `square ${isLight ? 'light' : 'dark'}`;
               if (isSelected) cls += ' selected';
               if (isLast) cls += ' last-move';
               if (isKingInCheck) cls += ' in-check';
+              if (isHintFrom) cls += ' hint-from-square';
+              if (isHintTo) cls += ' hint-to-square';
 
               const rankLbl = orientation === 'WHITE' ? (c === 0 ? RANKS[r] : null) : (c === 7 ? RANKS[r] : null);
               const fileLbl = orientation === 'WHITE' ? (r === 7 ? FILES[c] : null) : (r === 0 ? FILES[c] : null);

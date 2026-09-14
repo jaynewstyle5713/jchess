@@ -31,6 +31,34 @@
   text-align: center;
 }
 
+.label-with-action {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.label-with-action label {
+  margin-bottom: 0 !important;
+}
+
+.btn-rating-guide {
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px solid #38bdf8;
+  color: #38bdf8;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-rating-guide:hover {
+  background: #38bdf8;
+  color: #0f172a;
+}
+
 .form-group {
   margin-bottom: 1.25rem;
 }
@@ -214,6 +242,10 @@
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 0.5rem;
+}
+
+.ai-level-btn:nth-child(5) {
+  grid-column: span 2;
 }
 
 .ai-level-btn {

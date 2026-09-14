@@ -71,3 +71,37 @@ export async function joinGameApi(gameId: string, playerId?: string, playerName?
   }
   return resp.json();
 }
+
+export async function requestHintApi(gameId: string, playerId: string) {
+  const url = `${getApiBaseUrl()}/api/v1/games/${gameId}/hint`;
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Player-Id': playerId,
+    },
+  });
+  if (!resp.ok) {
+    const errorData = await resp.json().catch(() => ({}));
+    throw new Error(errorData.message || '추천TIP을 가져오지 못했습니다.');
+  }
+  return resp.json();
+}
+
+
+export async function undoMoveApi(gameId: string, playerId: string) {
+  const url = `${getApiBaseUrl()}/api/v1/games/${gameId}/undo`;
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Player-Id': playerId,
+    },
+  });
+  if (!resp.ok) {
+    const errorData = await resp.json().catch(() => ({}));
+    throw new Error(errorData.message || '무르기에 실패했습니다.');
+  }
+  return resp.json();
+}
+

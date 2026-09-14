@@ -12,6 +12,7 @@ export type EventType =
   | 'GAME_STATE_UPDATED'
   | 'MOVE_REJECTED'
   | 'GAME_ENDED'
+  | 'DRAW_REJECTED'
   | 'PLAYER_CONNECTION_CHANGED'
   | 'ERROR';
 
@@ -64,6 +65,7 @@ export interface GameEndedPayload {
   reason: GameEndReason;
   finalFen: string;
   endedAt: string;
+  message?: string;
 }
 
 export interface ErrorPayload {

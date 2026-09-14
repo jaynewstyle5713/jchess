@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jchess.ai.AsyncAiMoveExecutor;
 import com.jchess.api.dto.*;
 import com.jchess.domain.exception.ChessException;
+import com.jchess.domain.model.GameMode;
 import com.jchess.domain.model.GameStatus;
 import com.jchess.domain.model.PieceType;
 import com.jchess.service.GameService;
@@ -226,14 +227,54 @@ public class ChessWebSocketHandler implements WebSocketHandler {
     }
 
     private void handleOfferDraw(String gameId, String playerId) {
-        EventEnvelope<DrawOfferPayload> offerEvent = EventEnvelope.of(
-                "evt-" + UUID.randomUUID().toString().substring(0, 8),
-                gameId,
-                null,
-                "DRAW_OFFERED",
-                new DrawOfferPayload(playerId)
-        );
-        sessionManager.broadcast(gameId, offerEvent);
+        try {
+            GameSnapshotResponse current = gameService.getGameSnapshot(gameId);
+            if (isGameOver(current.gameStatus())) {
+                return;
+            }
+
+            if (current.gameMode() == GameMode.PVC) {
+                boolean accepted = gameService.evaluateAiDrawOffer(gameId, playerId);
+                if (accepted) {
+                    GameSnapshotResponse drawSnapshot = gameService.agreeDraw(gameId, playerId);
+                    EventEnvelope<GameEndedPayload> endedEvent = EventEnvelope.of(
+                            "evt-" + UUID.randomUUID().toString().substring(0, 8),
+                            gameId,
+                            drawSnapshot.gameVersion(),
+                            "GAME_ENDED",
+                            new GameEndedPayload(
+                                    drawSnapshot.result(),
+                                    drawSnapshot.endReason(),
+                                    drawSnapshot.fen(),
+                                    Instant.now(),
+                                    "🤝 AI가 무승부 제안을 수락하였습니다. (합의 무승부)"
+                            )
+                    );
+                    sessionManager.broadcast(gameId, endedEvent);
+                } else {
+                    EventEnvelope<DrawRejectedPayload> rejectEvent = EventEnvelope.of(
+                            "evt-" + UUID.randomUUID().toString().substring(0, 8),
+                            gameId,
+                            current.gameVersion(),
+                            "DRAW_REJECTED",
+                            new DrawRejectedPayload("✋ AI가 현재 유리한 형세로 판단하여 무승부 제안을 거절했습니다.")
+                    );
+                    sessionManager.broadcast(gameId, rejectEvent);
+                }
+                return;
+            }
+
+            EventEnvelope<DrawOfferPayload> offerEvent = EventEnvelope.of(
+                    "evt-" + UUID.randomUUID().toString().substring(0, 8),
+                    gameId,
+                    null,
+                    "DRAW_OFFERED",
+                    new DrawOfferPayload(playerId)
+            );
+            sessionManager.broadcast(gameId, offerEvent);
+        } catch (Exception e) {
+            log.error("Failed to handle offer draw via WebSocket: {}", e.getMessage(), e);
+        }
     }
 
     private boolean isGameOver(GameStatus status) {

@@ -62,6 +62,9 @@ export interface GameSnapshot {
   gameId: string;
   gameMode?: GameMode;
   aiLevel?: number;
+  remainingHints?: number;
+  maxUndos?: number;
+  remainingUndos?: number;
   gameStatus: GameStatus;
   gameVersion: number;
   turn: PieceColor;

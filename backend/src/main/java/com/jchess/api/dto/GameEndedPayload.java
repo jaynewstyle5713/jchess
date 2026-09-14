@@ -9,5 +9,11 @@ public record GameEndedPayload(
         GameResult result,
         GameEndReason reason,
         String finalFen,
-        Instant endedAt
-) {}
+        Instant endedAt,
+        String message
+) {
+    public GameEndedPayload(GameResult result, GameEndReason reason, String finalFen, Instant endedAt) {
+        this(result, reason, finalFen, endedAt, null);
+    }
+}
+

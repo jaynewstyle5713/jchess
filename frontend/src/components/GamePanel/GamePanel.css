@@ -12,6 +12,80 @@
   color: #f1f5f9;
 }
 
+.material-advantage-card {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.material-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.4rem;
+}
+
+.material-card-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #94a3b8;
+}
+
+.material-advantage-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #38bdf8;
+}
+
+.material-scores-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.score-chip {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+}
+
+.score-chip.my-chip {
+  border-color: rgba(56, 189, 248, 0.4);
+}
+
+.chip-avatar {
+  font-size: 0.95rem;
+}
+
+.chip-name {
+  color: #cbd5e1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 65px;
+}
+
+.chip-score {
+  margin-left: auto;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.scores-vs {
+  font-size: 0.7rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
 .player-card {
   display: flex;
   justify-content: space-between;
@@ -190,6 +264,32 @@
 .control-btn:hover {
   opacity: 0.9;
   transform: translateY(-1px);
+}
+
+.undo-btn {
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  color: #fff;
+  border: 1px solid #818cf8;
+  font-weight: 700;
+}
+
+.undo-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.hint-btn {
+  background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+  color: #fff;
+  border: 1px solid #f59e0b;
+  font-weight: 700;
+}
+
+.hint-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .sync-btn {

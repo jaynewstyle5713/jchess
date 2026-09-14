@@ -9,6 +9,7 @@ interface UseChessWebSocketProps {
   onStateUpdated?: (update: GameStateUpdatedPayload, gameVersion: number) => void;
   onMoveRejected?: (rejected: MoveRejectedPayload) => void;
   onGameEnded?: (ended: GameEndedPayload) => void;
+  onDrawRejected?: (payload: { reason: string }) => void;
   onError?: (message: string) => void;
 }
 
@@ -19,6 +20,7 @@ export function useChessWebSocket({
   onStateUpdated,
   onMoveRejected,
   onGameEnded,
+  onDrawRejected,
   onError,
 }: UseChessWebSocketProps) {
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('DISCONNECTED');
@@ -31,6 +33,7 @@ export function useChessWebSocket({
   const onStateUpdatedRef = useRef(onStateUpdated);
   const onMoveRejectedRef = useRef(onMoveRejected);
   const onGameEndedRef = useRef(onGameEnded);
+  const onDrawRejectedRef = useRef(onDrawRejected);
   const onErrorRef = useRef(onError);
 
   useEffect(() => {
@@ -38,6 +41,7 @@ export function useChessWebSocket({
     onStateUpdatedRef.current = onStateUpdated;
     onMoveRejectedRef.current = onMoveRejected;
     onGameEndedRef.current = onGameEnded;
+    onDrawRejectedRef.current = onDrawRejected;
     onErrorRef.current = onError;
   });
 
@@ -89,6 +93,9 @@ export function useChessWebSocket({
               break;
             case 'GAME_ENDED':
               onGameEndedRef.current?.(envelope.payload as GameEndedPayload);
+              break;
+            case 'DRAW_REJECTED':
+              onDrawRejectedRef.current?.(envelope.payload as { reason: string });
               break;
             case 'ERROR':
               onErrorRef.current?.((envelope.payload as { message: string }).message || '알 수 없는 오류');

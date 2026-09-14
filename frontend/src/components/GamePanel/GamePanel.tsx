@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { GameEndReason, GameResult, GameStatus, PieceColor, PlayerInfo } from '../../types/game';
+import { calculateMaterial } from '../../utils/chess';
 import './GamePanel.css';
 
 interface GamePanelProps {
+  fen: string;
   status: GameStatus;
   turn: PieceColor;
   isCheck: boolean;
@@ -11,6 +13,12 @@ interface GamePanelProps {
   myColor?: PieceColor | null;
   result?: GameResult | null;
   endReason?: GameEndReason | null;
+  isAiGame?: boolean;
+  remainingHints?: number;
+  maxUndos?: number;
+  remainingUndos?: number;
+  onRequestHint?: () => void;
+  onRequestUndo?: () => void;
   onResign: () => void;
   onOfferDraw: () => void;
   onSync: () => void;
@@ -18,6 +26,7 @@ interface GamePanelProps {
 }
 
 export const GamePanel: React.FC<GamePanelProps> = ({
+  fen,
   status,
   turn,
   isCheck,
@@ -26,6 +35,12 @@ export const GamePanel: React.FC<GamePanelProps> = ({
   myColor,
   result,
   endReason,
+  isAiGame = false,
+  remainingHints = 3,
+  maxUndos = 3,
+  remainingUndos = 3,
+  onRequestHint,
+  onRequestUndo,
   onResign,
   onOfferDraw,
   onSync,
@@ -57,6 +72,11 @@ export const GamePanel: React.FC<GamePanelProps> = ({
     return () => clearInterval(interval);
   }, [status, turn]);
 
+  // 기물 점수 및 실시간 형세 분석 (REQ-UAT-05)
+  const materialEval = useMemo(() => {
+    return calculateMaterial(fen, myColor || 'WHITE');
+  }, [fen, myColor]);
+
   const formatTime = (ms: number) => {
     const totalSec = Math.floor(ms / 1000);
     const min = Math.floor(totalSec / 60);
@@ -74,6 +94,27 @@ export const GamePanel: React.FC<GamePanelProps> = ({
 
   return (
     <div className="game-panel">
+      {/* ⚖️ 기물 점수 & 실시간 형세 분석 바 (REQ-UAT-05) */}
+      <div className="material-advantage-card">
+        <div className="material-card-header">
+          <span className="material-card-title">⚖️ 기물 점수 & 형세 분석</span>
+          <span className="material-advantage-badge">{materialEval.advantageText}</span>
+        </div>
+        <div className="material-scores-row">
+          <div className="score-chip">
+            <span className="chip-avatar">{topColor === 'WHITE' ? '♔' : '♚'}</span>
+            <span className="chip-name">{topPlayer.name}</span>
+            <span className="chip-score">{topColor === 'WHITE' ? materialEval.whiteScore : materialEval.blackScore}점</span>
+          </div>
+          <span className="scores-vs">vs</span>
+          <div className="score-chip my-chip">
+            <span className="chip-avatar">{bottomColor === 'WHITE' ? '♔' : '♚'}</span>
+            <span className="chip-name">{bottomPlayer.name}</span>
+            <span className="chip-score">{bottomColor === 'WHITE' ? materialEval.whiteScore : materialEval.blackScore}점</span>
+          </div>
+        </div>
+      </div>
+
       {/* 상단 플레이어 카드 */}
       <div className={`player-card top ${turn === topColor && !isGameOver ? 'active-turn' : ''}`}>
         <div className="player-info">
@@ -136,10 +177,30 @@ export const GamePanel: React.FC<GamePanelProps> = ({
         </div>
       </div>
 
-      {/* 조작 버튼 패널 */}
+      {/* 조작 버튼 패널 (무르기, 힌트, 동기화, 무승부, 기권) */}
       <div className="game-controls">
         {!isGameOver ? (
           <>
+            {isAiGame && onRequestUndo && (
+              <button
+                className="control-btn undo-btn"
+                onClick={onRequestUndo}
+                disabled={remainingUndos <= 0}
+                title={remainingUndos <= 0 ? `무르기 ${maxUndos}회를 모두 소진하셨습니다.` : `직전 수 되돌리기 (남은 횟수: ${remainingUndos}/${maxUndos}회)`}
+              >
+                ↩️ 무르기 ({remainingUndos}/{maxUndos})
+              </button>
+            )}
+            {isAiGame && onRequestHint && (
+              <button
+                className="control-btn hint-btn"
+                onClick={onRequestHint}
+                disabled={remainingHints <= 0 || (myColor !== null && turn !== myColor)}
+                title={remainingHints <= 0 ? '추천TIP 3회를 모두 사용하셨습니다.' : 'AI 최선의 수 추천 받기 (게임당 3회)'}
+              >
+                💡 추천TIP ({remainingHints}/3)
+              </button>
+            )}
             <button className="control-btn sync-btn" onClick={onSync} title="서버 최신 상태 동기화">동기화</button>
             <button className="control-btn draw-btn" onClick={onOfferDraw} title="무승부 제안">무승부 제안</button>
             <button className="control-btn resign-btn" onClick={onResign} title="기권하기">기권</button>

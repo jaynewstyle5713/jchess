@@ -145,11 +145,11 @@
 
 .game-view-container {
   display: flex;
-  gap: 2rem;
-  align-items: center;
+  gap: 1.5rem;
+  align-items: flex-start;
   justify-content: center;
   flex-wrap: wrap;
-  max-width: 1100px;
+  max-width: 1440px;
   width: 100%;
 }
 

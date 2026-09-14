@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { GameMode, PieceColor } from '../../types/game';
+import { AiRatingGuideModal } from '../AiRatingModal/AiRatingGuideModal';
 import './Lobby.css';
 
 export interface AiLevelOption {
@@ -10,10 +11,11 @@ export interface AiLevelOption {
 }
 
 export const AI_LEVEL_PRESETS: AiLevelOption[] = [
-  { levelKey: 'BEGINNER', label: 'AI-하수', elo: 600, desc: '입문 (600)' },
-  { levelKey: 'INTERMEDIATE', label: 'AI-중수', elo: 1100, desc: '중급 (1100)' },
-  { levelKey: 'ADVANCED', label: 'AI-고급', elo: 1600, desc: '상급 (1600)' },
-  { levelKey: 'EXPERT', label: 'AI-초고수', elo: 2000, desc: '초고수 (2000)' },
+  { levelKey: 'SF_8', label: 'Stockfish 8', elo: 600, desc: '입문 (600)' },
+  { levelKey: 'SF_11', label: 'Stockfish 11', elo: 900, desc: '초급 (900)' },
+  { levelKey: 'SF_14', label: 'Stockfish 14', elo: 1300, desc: '중급 (1300)' },
+  { levelKey: 'SF_17', label: 'Stockfish 17', elo: 1700, desc: '고급 (1700)' },
+  { levelKey: 'SF_19', label: 'Stockfish 19', elo: 2000, desc: '마스터 (2000+)' },
 ];
 
 interface LobbyProps {
@@ -39,11 +41,12 @@ const TIME_PRESETS = [
 
 export const Lobby: React.FC<LobbyProps> = ({ onCreateGame, onJoinGame, onOpenRules, isLoading }) => {
   const [gameMode, setGameMode] = useState<GameMode>('PVC');
-  const [selectedAiIdx, setSelectedAiIdx] = useState(3); // 기본값: AI-초고수 (2000)
+  const [selectedAiIdx, setSelectedAiIdx] = useState(0); // 기본값: AI-초보자 (600)
   const [selectedTimeIdx, setSelectedTimeIdx] = useState(2); // Rapid 10+0
   const [preferredColor, setPreferredColor] = useState<PieceColor | 'RANDOM'>('WHITE');
   const [playerName, setPlayerName] = useState('플레이어');
   const [joinGameId, setJoinGameId] = useState('');
+  const [isRatingGuideOpen, setIsRatingGuideOpen] = useState(false);
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
@@ -116,7 +119,17 @@ export const Lobby: React.FC<LobbyProps> = ({ onCreateGame, onJoinGame, onOpenRu
         {/* AI 레벨 선택 (PVC 모드 시 표시) */}
         {gameMode === 'PVC' && (
           <div className="form-group">
-            <label>AI 난이도 레벨 (Rating 300 - 2000)</label>
+            <div className="label-with-action">
+              <label>AI 난이도 레벨 (Rating 600 - 2000)</label>
+              <button
+                type="button"
+                className="btn-rating-guide"
+                onClick={() => setIsRatingGuideOpen(true)}
+                title="ELO 레이팅 기준 및 체감 실력 안내"
+              >
+                ℹ️ 레이팅 기준
+              </button>
+            </div>
             <div className="ai-level-grid">
               {AI_LEVEL_PRESETS.map((ai, idx) => (
                 <button
@@ -208,6 +221,12 @@ export const Lobby: React.FC<LobbyProps> = ({ onCreateGame, onJoinGame, onOpenRu
           </button>
         </form>
       </div>
+
+      {/* AI 레이팅 가이드 모달 */}
+      <AiRatingGuideModal
+        isOpen={isRatingGuideOpen}
+        onClose={() => setIsRatingGuideOpen(false)}
+      />
     </div>
   );
 };
