@@ -69,7 +69,7 @@ gradle -version
 - [x] Spring Boot 4 정확한 안정 버전: Spring Boot 4.1.1
 - [x] Maven 또는 Gradle 선택, 버전, Wrapper 검증: Gradle 9.7.1 Wrapper
 - [x] Node.js와 package manager 버전: Node.js v24.19.0, npm 11.17.0
-- [x] React, TypeScript, Vite 버전: React 19.2.8, TypeScript 5.7.2, Vite 6.2.0
+- [x] React, TypeScript, Vite 버전: React 19.2.8, TypeScript 5.7.2, Vite 6.4.5 (2026-11-07 보안 업데이트)
 - [x] PostgreSQL 버전과 포트 검증: PostgreSQL 18.6 (포트 5432)
 - [x] Backend/Frontend 빌드 및 테스트 결과: Backend `./gradlew check` 및 Frontend `npm run build` 통과
 
@@ -157,6 +157,12 @@ Test-NetConnection -ComputerName localhost -Port 5432
   ```
   결과: `✓ built in 1.34s` (dist 산출물 생성 확인)
 
+- 2026-11-07 보안 업데이트: 프런트엔드 취약 의존성을 현재 semver 범위 안에서 갱신했다.
+  - 실행 명령: `cd frontend && npm audit fix`
+  - 변경: `package-lock.json`의 Vite 6.4.3 → 6.4.5, source-map-js 1.2.1 → 1.2.2
+  - 검증: `npm audit` 취약점 0건, `npm run build` 성공
+  - 상세 조치 및 검토: [`docs/2026-11-07_frontend_npm_vulnerability_remediation.md`](docs/2026-11-07_frontend_npm_vulnerability_remediation.md)
+
 ## 7. 교육용 재현 절차
 
 프로젝트 초기 설정이 완료되면 다음 순서로 새 환경에서 재현할 수 있다.
@@ -192,4 +198,5 @@ Test-NetConnection -ComputerName localhost -Port 5432
 | 2026-09-09 | CP-07 하이브리드 Stockfish UCI AI 체스 엔진(ELO 2000+) 및 비동기 PVC 대국 연동 완료 |
 | 2026-09-09 | CP-08 PVP/PVC E2E 통합 테스트, 보안 인가 검증, 라이브 서버 인수 테스팅 86종 100% All Green 통과 및 최종 릴리스 검수 완료 |
 | 2026-09-09 | `/preview` 스탠드얼론 목업 및 `acceptance_stub_test.js` 실서버 인수 스텁 구축 완료 |
+| 2026-11-07 | `npm audit fix`로 Vite 6.4.5 및 source-map-js 1.2.2 업데이트, audit 0건과 프런트엔드 빌드 성공 확인 |
 
